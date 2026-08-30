@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFileStore, FileEntry } from "../../store/fileStore";
 import { useEditorStore } from "../../store/editorStore";
 
-function TreeNode({ entry, depth, onSelect }: { entry: FileEntry; depth: number; onSelect: (p: string, isDir: boolean) => void }) {
+function TreeNode({ entry, depth, onSelect, onOpenInNotepad }: { entry: FileEntry; depth: number; onSelect: (p: string, isDir: boolean) => void; onOpenInNotepad: (p: string) => void }) {
   const [expanded, setExpanded] = useState(depth < 1);
   const [children, setChildren] = useState<FileEntry[] | null>(entry.children || null);
   const isDir = entry.is_dir;
@@ -24,14 +24,25 @@ function TreeNode({ entry, depth, onSelect }: { entry: FileEntry; depth: number;
 
   return (
     <div>
-      <div className="file-entry" style={{ paddingLeft: 8 + depth * 12 }} onClick={toggle} title={entry.path}>
-        <span style={{ fontSize: 11 }}>{isDir ? (expanded ? "▼" : "▶") : "•"}</span>
-        <span>{entry.name}</span>
+      <div className="file-entry" style={{ paddingLeft: 8 + depth * 12, display: "flex", alignItems: "center", justifyContent: "space-between" }} title={entry.path}>
+        <span onClick={toggle} style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, cursor: "pointer" }}>
+          <span style={{ fontSize: 11 }}>{isDir ? (expanded ? "▼" : "▶") : "•"}</span>
+          <span>{entry.name}</span>
+        </span>
+        {!isDir && (
+          <span
+            onClick={(e) => { e.stopPropagation(); onOpenInNotepad(entry.path); }}
+            title="One-click: Open in Notepad / System Editor"
+            style={{ fontSize: 11, padding: "2px 6px", border: "1px solid var(--border)", borderRadius: 4, cursor: "pointer", marginLeft: 6, whiteSpace: "nowrap" }}
+          >
+            Notepad ↗
+          </span>
+        )}
       </div>
       {isDir && expanded && children && (
         <div>
           {children.map((c) => (
-            <TreeNode key={c.path} entry={c} depth={depth + 1} onSelect={onSelect} />
+            <TreeNode key={c.path} entry={c} depth={depth + 1} onSelect={onSelect} onOpenInNotepad={onOpenInNotepad} />
           ))}
         </div>
       )}
@@ -97,6 +108,14 @@ export default function FileTree() {
     } catch (e) { alert(String(e)); }
   };
 
+  const openInNotepad = async (path: string) => {
+    try {
+      await invoke("open_in_system_editor", { path });
+    } catch (e) {
+      alert(`Failed to open Notepad/system editor: ${String(e)}`);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       <div style={{ padding: "8px", display: "flex", gap: 6, borderBottom: "1px solid var(--border)" }}>
@@ -108,7 +127,7 @@ export default function FileTree() {
         {!rootPath && !loading && <div style={{ color: "var(--text-dim)", padding: 8 }}>No folder opened</div>}
         {loading && <div style={{ padding: 8 }}>Loading…</div>}
         {entries.map((e) => (
-          <TreeNode key={e.path} entry={e} depth={0} onSelect={handleSelect} />
+          <TreeNode key={e.path} entry={e} depth={0} onSelect={handleSelect} onOpenInNotepad={openInNotepad} />
         ))}
       </div>
     </div>

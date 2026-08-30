@@ -206,6 +206,36 @@ export default { metadata:{id:"lang-go", languages:["go"]}, activate(api){ api.c
 - **Global** `~/.config/LiteIDE/config.toml` (or `%APPDATA%\LiteIDE\config.toml` on Win): `theme`, `font_family`, `font_size`, `auto_save_interval`, `keybindings`, `lsp.*`, `recent_projects`
 - **Per-project** `.liteidrc` JSON at root: `build_command`, `run_command`, `language`, `env` — edit via Settings UI (MenuBar → Settings) or `.liteidrc.example`
 
+## One-Click Notepad / System Editor
+
+You asked: **"user should just click once and notepad must open"** — done.
+
+- In **Explorer** each file row has a `Notepad ↗` button (right side). **One click** → opens the file in the native editor without leaving LiteIDE:
+  - **Windows:** `notepad.exe {file}` (`src-tauri/src/lib.rs:172` `open_in_system_editor` → `pal/windows.rs:10` `notepad.exe`)
+  - **macOS:** `open -t {file}` (TextEdit) (`pal/macos.rs:10`)
+  - **Linux/BSD:** `xdg-open {file}` → `gedit` fallback (`pal/linux.rs:10` / `pal/bsd.rs:10`)
+- Single-click on **file name** still opens Monaco inside LiteIDE; the `Notepad ↗` is the explicit one-click external path. Also available via command palette: `File: Open in System Editor` (future) and Tauri command `invoke("open_in_system_editor", {path})`.
+- File → `Open in File Manager` (explorer/finder/xdg-open) is separate (`invoke("open_in_file_manager")`).
+
+## Packaging — One Command for All Platforms
+
+`tauri.conf.json:26` `bundle.targets: "all"` + `build.beforeBuildCommand: "pnpm build"` — run once:
+
+```powershell
+pnpm tauri build   # or cargo tauri build
+```
+
+Outputs (CI also builds via `build-*.yml`):
+
+| Platform | Command | Outputs | Installer behavior |
+|---|---|---|---|
+| **Windows** x64 | `pnpm tauri build --target x86_64-pc-windows-msvc` | `src-tauri/target/release/bundle/nsis/LiteIDE_0.1.0_x64-setup.exe` (NSIS) + `LiteIDE_0.1.0_x64_en-US.msi` (if wix) + portable `*.zip` | One-click Next → desktop + Start Menu shortcut; portable zip = unzip and run `LiteIDE.exe` |
+| **Linux** x64 | `pnpm tauri build --target x86_64-unknown-linux-gnu` | `*.AppImage` (one-click `chmod +x` + double-click), `*.deb` (`sudo dpkg -i`), `*.rpm` (`sudo rpm -i`) | AppImage = no install; deb/rpm = system package |
+| **macOS** universal | `pnpm tauri build --target universal-apple-darwin` | `LiteIDE_0.1.0_universal.dmg` (notarized when `APPLE_*` secrets set) | One-click drag to Applications; notarized → no Gatekeeper warning |
+| **BSD** | `cargo tauri build` (manual) | `target/release/liteide` binary + `bundle/` tarball | `sudo pkg install` deps then `./liteide` or `sudo make install` |
+
+CI auto-uploads artifacts (`actions/upload-artifact@v4`). No Store/Marketplace in v1.0 (Rule 11).
+
 ## Keybindings (customizable, persisted in TOML)
 
 `Ctrl+S` save, `Ctrl+Shift+P` palette, `Ctrl+B` build, `Ctrl+R` run, `Ctrl+F` find — edit in `Settings → Keybindings`.

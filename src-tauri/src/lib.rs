@@ -167,6 +167,34 @@ fn open_in_file_manager(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// One-click: open file in system editor (Notepad on Windows, TextEdit/open -t on macOS, xdg-open/gedit on Linux/BSD)
+#[tauri::command]
+fn open_in_system_editor(path: String) -> Result<(), String> {
+    let platform = current_platform().platform_name().to_string();
+    let result = if platform == "windows" {
+        // Prefer notepad.exe, fallback to notepad
+        std::process::Command::new("notepad.exe")
+            .arg(&path)
+            .spawn()
+            .or_else(|_| std::process::Command::new("notepad").arg(&path).spawn())
+            .map(|_| ())
+    } else if platform == "macos" {
+        std::process::Command::new("open")
+            .args(["-t", &path])
+            .spawn()
+            .map(|_| ())
+    } else {
+        // Linux / BSD / other POSIX — try xdg-open, then gedit, then open
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .or_else(|_| std::process::Command::new("gedit").arg(&path).spawn())
+            .or_else(|_| std::process::Command::new("open").arg(&path).spawn())
+            .map(|_| ())
+    };
+    result.map_err(|e| format!("failed to open system editor ({}): {}", platform, e))
+}
+
 // --- Plugin ---
 #[tauri::command]
 fn list_plugins(state: tauri::State<AppState>) -> Vec<core::plugin_manager::PluginMetadata> {
@@ -222,6 +250,7 @@ pub fn run() {
             get_shell_config,
             platform_name,
             open_in_file_manager,
+            open_in_system_editor,
             list_plugins
         ])
         .run(tauri::generate_context!())
