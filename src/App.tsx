@@ -9,8 +9,11 @@ import StatusBar from "./components/StatusBar";
 import CommandPalette, { Command } from "./components/CommandPalette";
 import Settings from "./components/Settings";
 import MenuBar from "./components/MenuBar";
+import HelpModal from "./components/HelpModal";
 import { useEditorStore } from "./store/editorStore";
+import { useFileStore } from "./store/fileStore";
 import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { EventBus } from "./plugins/plugin-api";
 import langPython from "./plugins/lang-python";
 import langCCpp from "./plugins/lang-c-cpp";
@@ -23,6 +26,8 @@ export default function App() {
   const [bottomTab, setBottomTab] = useState<"output" | "terminal" | "problems">("output");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [outputMsg, setOutputMsg] = useState<string | null>(null);
   const theme = useEditorStore((s) => s.theme);
 
   // Plugin activation (core does not import plugins directly in Rust, but frontend bootstraps built-ins)
@@ -62,17 +67,108 @@ export default function App() {
     langJava.activate(api as never);
   }, []);
 
-  // Keyboard shortcut for command palette
+  // Keyboard shortcuts
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setPaletteOpen((v) => !v);
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        handleOpenFolder();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        handleCloseFile();
+      }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
+
+  // Menu handlers
+  const handleOpenFolder = async () => {
+    const sel = await open({ directory: true });
+    if (typeof sel === "string") {
+      useFileStore.getState().setRoot(sel);
+      eventBus.emit("project:open", sel);
+      // persist recent
+      try {
+        const cfg = await invoke<{ recent_projects: string[] }>("get_global_config");
+        const recent = [sel, ...(cfg.recent_projects || []).filter((p: string) => p !== sel)].slice(0, 10);
+        await invoke("save_global_config", { config: { ...cfg, recent_projects: recent } });
+      } catch {}
+    }
+  };
+  const handleOpenFile = async () => {
+    const sel = await open({ multiple: false });
+    if (typeof sel === "string") {
+      try {
+        const content = await invoke<string>("read_file", { path: sel });
+        const lang = await invoke<string>("detect_language", { path: sel });
+        useEditorStore.getState().openTab({ path: sel, content, dirty: false, language: lang });
+        window.dispatchEvent(new CustomEvent("file:open", { detail: sel }));
+      } catch (e) { alert(String(e)); }
+    }
+  };
+  const handleSave = async () => {
+    const { activePath, tabs, markSaved } = useEditorStore.getState();
+    if (!activePath) return alert("No file open");
+    const tab = tabs.find((t) => t.path === activePath);
+    if (!tab) return;
+    try {
+      await invoke("write_file", { path: activePath, content: tab.content });
+      markSaved(activePath);
+    } catch (e) { alert(String(e)); }
+  };
+  const handleSaveAs = async () => {
+    const { activePath, tabs } = useEditorStore.getState();
+    if (!activePath) return;
+    const tab = tabs.find((t) => t.path === activePath);
+    const dest = await save({ defaultPath: activePath });
+    if (typeof dest === "string" && tab) {
+      await invoke("write_file", { path: dest, content: tab.content });
+      const lang = await invoke<string>("detect_language", { path: dest });
+      useEditorStore.getState().openTab({ path: dest, content: tab.content, dirty: false, language: lang });
+    }
+  };
+  const handleCloseFile = () => {
+    const { activePath, closeTab } = useEditorStore.getState();
+    if (activePath) closeTab(activePath);
+  };
+  const handleBuild = async () => {
+    setBottomTab("output");
+    const { activePath } = useEditorStore.getState();
+    const root = useFileStore.getState().rootPath;
+    if (!activePath) { setOutputMsg("No file open — File → Open File"); return; }
+    const lang = await invoke<string>("detect_language", { path: activePath });
+    setOutputMsg(`Building ${activePath} (${lang})…`);
+    try {
+      const res = await invoke<{ stdout: string; stderr: string; success: boolean; exit_code: number | null }>("build_project", { req: { language: lang, file: activePath, output: null, extra_args: null, cwd: root } });
+      setOutputMsg(`Build ${res.success ? "ok" : "fail"} exit ${res.exit_code ?? "?"} — see Output tab for details`);
+      eventBus.emit("build:done", res);
+    } catch (e) { setOutputMsg(String(e)); }
+    setTimeout(() => setOutputMsg(null), 4000);
+  };
+  const handleRun = async () => {
+    setBottomTab("output");
+    const { activePath } = useEditorStore.getState();
+    const root = useFileStore.getState().rootPath;
+    if (!activePath) { setOutputMsg("No file open"); return; }
+    const lang = await invoke<string>("detect_language", { path: activePath });
+    setOutputMsg(`Running ${activePath} (${lang})…`);
+    try {
+      const res = await invoke<{ stdout: string; stderr: string; success: boolean; exit_code: number | null }>("run_project", { req: { language: lang, file: activePath, cwd: root, args: null } });
+      setOutputMsg(`Run ${res.success ? "ok" : "fail"}: ${res.stdout.slice(0,120)}`);
+      eventBus.emit("run:done", res);
+    } catch (e) { setOutputMsg(String(e)); }
+    setTimeout(() => setOutputMsg(null), 5000);
+  };
 
   const commands: Command[] = useMemo(() => {
     const cmds = (window as unknown as Record<string, unknown>).__commands as { _cmds?: Map<string, { label: string; handler: () => void }> } | undefined;
@@ -94,7 +190,27 @@ export default function App() {
 
   return (
     <div className="app-root" data-theme={theme}>
-      <MenuBar onSettings={() => setSettingsOpen(true)} />
+      <MenuBar
+        onOpenFolder={handleOpenFolder}
+        onOpenFile={handleOpenFile}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onCloseFile={handleCloseFile}
+        onShowExplorer={() => setSidebarTab("explorer")}
+        onShowSearch={() => setSidebarTab("search")}
+        onShowPlugins={() => setSidebarTab("plugins")}
+        onToggleTheme={() => useEditorStore.getState().setTheme(theme === "dark" ? "light" : "dark")}
+        onSplitH={() => useEditorStore.getState().setSplitCount(2)}
+        onSplitV={() => useEditorStore.getState().setSplitCount(2)}
+        onCloseSplit={() => useEditorStore.getState().setSplitCount(1)}
+        onBuild={handleBuild}
+        onRun={handleRun}
+        onShowTerminal={() => setBottomTab("terminal")}
+        onShowOutput={() => setBottomTab("output")}
+        onSettings={() => setSettingsOpen(true)}
+        onHelp={() => setHelpOpen(true)}
+        onPalette={() => setPaletteOpen(true)}
+      />
       <div className="app-body">
         <div className="sidebar">
           <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)" }}>
@@ -122,9 +238,11 @@ export default function App() {
           </div>
         </div>
       </div>
-      <StatusBar />
+      <StatusBar onHelp={() => setHelpOpen(true)} />
       <CommandPalette commands={commands} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {outputMsg && <div style={{ position: "fixed", bottom: 30, left: "50%", transform: "translateX(-50%)", background: "var(--accent)", color: "#fff", padding: "6px 12px", borderRadius: 4, fontSize: 12, zIndex: 500 }}>{outputMsg} <span onClick={() => setOutputMsg(null)} style={{ marginLeft: 8, cursor: "pointer", textDecoration: "underline" }}>×</span></div>}
     </div>
   );
 }
