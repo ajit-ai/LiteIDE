@@ -89,11 +89,15 @@ export default function FileTree() {
     try {
       const content = await invoke<string>("read_file", { path });
       const lang = await invoke<string>("detect_language", { path });
-      useEditorStore.getState().openTab({ path, content, dirty: false, language: lang });
-      // notify plugins
+      // Ensure content is string (Windows may return null on empty)
+      const safeContent = content ?? "";
+      useEditorStore.getState().openTab({ path, content: safeContent, dirty: false, language: lang });
       window.dispatchEvent(new CustomEvent("file:open", { detail: path }));
+      // Also ensure active is set (openTab does) and store updates
+      console.log("[FileTree] opened", path, "lang", lang, "len", safeContent.length);
     } catch (e) {
-      console.error(e);
+      console.error("[FileTree] read_file failed", path, e);
+      alert(`Failed to open ${path}:\n${String(e)}`);
     }
   };
 
