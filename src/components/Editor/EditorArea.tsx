@@ -46,9 +46,29 @@ export default function EditorArea() {
 
   const splitCount = useEditorStore((s) => s.splitCount);
   const [monacoFailed, setMonacoFailed] = React.useState(false);
+  const editorRef = React.useRef<unknown>(null);
 
-  // Normalize Windows backslashes for Monaco model path (prevents blank model)
+  // Normalize Windows backslashes for Monaco model path (prevents blank for Hello.java etc.)
   const monacoPath = activeTab.path.replace(/\\/g, "/");
+
+  // Auto-fallback if Monaco doesn't mount within 1.5s (Windows MSI blank fix)
+  useEffect(() => {
+    setMonacoFailed(false);
+    const t = window.setTimeout(() => {
+      // If still no editor instance after 1.5s, assume Monaco failed to load (e.g., WebView2 CSP) → fallback textarea
+      if (!editorRef.current) {
+        console.warn("[EditorArea] Monaco not mounted in 1.5s, switching to fallback for", activeTab.path);
+        setMonacoFailed(true);
+      }
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [activeTab.path]);
+
+  // Expose editor instance for MenuBar Edit (Undo/Cut/Copy/Paste) — works for Monaco, fallback uses native
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__monacoEditor = editorRef.current;
+    return () => { (window as unknown as Record<string, unknown>).__monacoEditor = null; };
+  }, [editorRef.current]);
 
   const renderEditor = (keySuffix = "") => {
     // Fallback textarea if Monaco fails (Windows MSI blank fix)
@@ -80,10 +100,16 @@ export default function EditorArea() {
             saveTimer.current = window.setTimeout(async () => {}, 1000);
           }}
           onMount={(editor) => {
+            editorRef.current = editor;
+            (window as unknown as Record<string, unknown>).__monacoEditor = editor;
             editor.onDidChangeCursorPosition((e) => {
               const pos = e.position;
               (window as unknown as Record<string, unknown>).__cursor = { line: pos.lineNumber, col: pos.column };
               window.dispatchEvent(new CustomEvent("cursorChange", { detail: { line: pos.lineNumber, col: pos.column } }));
+            });
+            // Copy-paste is native in Monaco (Ctrl+C/V) — ensure clipboard works; also expose for Menu Edit
+            editor.onDidFocusEditorText(() => {
+              (window as unknown as Record<string, unknown>).__monacoEditorFocused = true;
             });
           }}
           onValidate={() => {}}
