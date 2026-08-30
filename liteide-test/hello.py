@@ -1,1 +1,0 @@
-print("LiteIDE Python ok")
