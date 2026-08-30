@@ -1,252 +1,380 @@
 # LiteIDE — Small core, infinite reach
 
-Lightweight, extensible, cross-platform IDE. **Tauri 2 (Rust) + React 18 + Monaco + Zustand + Vite**. Guiding mantra: *Small core, infinite reach*.
+> Lightweight, extensible, cross-platform desktop IDE. **Consolidated Master Build Prompt implementation.**
 
 [![Build Windows](https://github.com/ajit-ai/LiteIDE/actions/workflows/build-windows.yml/badge.svg)](.github/workflows/build-windows.yml) [![Build Linux](https://github.com/ajit-ai/LiteIDE/actions/workflows/build-linux.yml/badge.svg)](.github/workflows/build-linux.yml) [![Build macOS](https://github.com/ajit-ai/LiteIDE/actions/workflows/build-macos.yml/badge.svg)](.github/workflows/build-macos.yml)
 
-## Supported Languages (v1.0)
-
-| Language | LSP | Compiler / Runner | Build | Run |
-|---|---|---|---|---|
-| **C** | `clangd` | `gcc`/`clang` auto-detect | `gcc -o {output} {file}` | `./{output}` |
-| **C++** | `clangd` | `g++`/`clang++` `-std=c++17` | `g++ -std=c++17 -o {output} {file}` | `./{output}` |
-| **Java** | `jdtls` (Eclipse JDT LS) | `javac`/`java` JDK | `javac {file}` / `mvn compile` / `gradle build` hint | `java {MainClass}` |
-| **Python** | `pylsp` or `pyright` | `python3`/`python`, `.venv` auto | `python -m py_compile {file}` | `python {file}` |
-
-All four are self-contained plugins under `src/plugins/lang-*` — adding a language = one new plugin, zero core changes (Rule 4).
+**One-liner:** `pnpm install && pnpm tauri dev` — <2s cold start, <150MB idle, <30MB binary.
 
 ---
 
-## Platform Support
+## Table of Contents
+- [1. Project Identity](#1-project-identity)
+- [2. Supported Languages](#2-supported-languages-v10)
+- [3. Technology Stack](#3-technology-stack-mandatory)
+- [4. Cross-Platform](#4-cross-platform-requirements)
+- [5. Architecture](#5-architecture-layers)
+- [6. Feature Set](#6-feature-set-v10-scope)
+- [7. Repository Structure](#7-repository-structure-enforce-this-layout)
+- [8. Extensibility Contract](#8-extensibility-contract-never-break-this)
+- [9. Implementation Order](#9-implementation-order)
+- [10. Quality & Performance Gates](#10-quality--performance-gates)
+- [11. What Not To Build](#11-what-not-to-build-out-of-scope-for-v10)
+- [How to Run](#how-to-run--per-platform)
+- [One-Click Notepad](#one-click-notepad--system-editor)
+- [Packaging](#packaging--one-command-for-all-platforms)
+- [Configuration](#configuration)
+- [Contributing](#contributing)
 
-| OS | Arch | Status | Artifacts | PAL module |
+---
+
+## 1. Project Identity
+
+| Field | Value |
+|---|---|
+| **Project Name** | LiteIDE |
+| **Type** | Lightweight, extensible, cross-platform desktop IDE |
+| **Primary Users** | Students, hobbyists, early-career developers |
+| **Design Goal** | Minimal footprint, maximum extensibility |
+| **Guiding Mantra** | *Small core, infinite reach* |
+| **License** | MIT |
+| **Identifier** | `com.liteide.app` (`src-tauri/tauri.conf.json:5`) |
+| **Product Name** | `LiteIDE` (`tauri.conf.json:3`) — produces `LiteIDE_0.1.0_x64-setup.exe` / `LiteIDE_0.1.0_x64_en-US.msi` on Windows |
+
+---
+
+## 2. Supported Languages (v1.0)
+
+Exactly four languages — each as self-contained plugin under `src/plugins/lang-*` (Rule 4):
+
+| # | Language | Language Server | Compiler / Runner (auto-detect `PATH`) | Build | Run / Debug | Plugin |
+|---|---|---|---|---|---|---|
+| 1 | **C** | `clangd` | `gcc` / `clang` | `gcc -o {output} {file}` (configurable) | `./{output}` / `gdb`/`lldb` | `src/plugins/lang-c-cpp/index.ts:10` |
+| 2 | **C++** | `clangd` (shared) | `g++` / `clang++` | `g++ -std=c++17 -o {output} {file}` | `./{output}` / `gdb`/`lldb` | `src/plugins/lang-c-cpp/index.ts` |
+| 3 | **Java** | Eclipse JDT LS `jdtls` | `javac` JDK `java {MainClass}` | `javac {file}` / `mvn compile` / `gradle build` hint (detects `pom.xml`/`build.gradle`) | `java {MainClass}` | `src/plugins/lang-java/index.ts:10` |
+| 4 | **Python** | `pylsp` or `Pyright` (configurable) | `python3`/`python` + `.venv`/`venv` auto | `python -m py_compile {file}` | `python {file}` / `pip` panel | `src/plugins/lang-python/index.ts:10` |
+
+> Adding a new language = one new `src/plugins/lang-go/index.ts` + `gopls` — zero changes to `src-tauri/` or core (see `docs/plugin-api.md`).
+
+---
+
+## 3. Technology Stack (mandatory)
+
+| Layer | Choice | Version | Config |
+|---|---|---|---|
+| **Desktop Shell** | Tauri | `2.x` (`tauri = "2"` in `src-tauri/Cargo.toml:19`) | `src-tauri/tauri.conf.json`, `capabilities/default.json` |
+| **Editor Widget** | Monaco Editor | `0.52` (`monaco-editor` + `@monaco-editor/react` `package.json`) | `src/components/Editor/monaco-config.ts:14` |
+| **UI Framework** | React | `18.3` | `src/App.tsx`, `src/main.tsx` |
+| **State** | Zustand | `4.5` | `src/store/editorStore.ts`, `fileStore.ts`, `pluginStore.ts` |
+| **Core Backend** | Rust | `1.77` (`rust-version`) | `src-tauri/src/core/*.rs` |
+| **IPC** | Tauri Commands/Events | `invoke`/`emit` | `src-tauri/src/lib.rs:17` |
+| **LSP Transport** | stdio (child process) | `tokio::process::Command` | `src-tauri/src/core/lsp_client.rs:36` |
+| **Config Format** | TOML global + JSON per-project | `toml = "0.8"` | `core/config_manager.rs:22` `~/.config/LiteIDE/config.toml` + `.liteidrc` |
+| **Build System** | Cargo + Vite | `Cargo` + `Vite 5.4` | `vite.config.ts` |
+| **Package Manager** | pnpm + Cargo | `pnpm@9.12` + `Cargo` | `package.json:26` |
+| **Testing** | `cargo test` + Vitest + Testing Library | `vitest 1.6`, `jsdom 24` | `vite.config.ts:28`, `src/test-setup.ts` |
+| **CI/CD** | GitHub Actions | `actions/checkout@v4` | `.github/workflows/build-*.yml` |
+
+---
+
+## 4. Cross-Platform Requirements
+
+Must run without modification on:
+
+| OS | Arch | CI | Artifacts | PAL (`src-tauri/src/pal/mod.rs:23` trait) |
 |---|---|---|---|---|
-| **Windows 10/11** | x86_64 | ✅ Tier 1 (CI) | NSIS `.exe` + portable `.zip` | `src-tauri/src/pal/windows.rs:10` — PowerShell/cmd, `ReadDirectoryChangesW`, `explorer` |
-| **Linux** (Ubuntu 22.04+, Fedora, Arch) | x86_64 | ✅ Tier 1 (CI) | `AppImage` + `.deb` + `.rpm` (`bundle targets: all`) | `pal/linux.rs:10` — `$SHELL`→bash, `inotify`, `xdg-open` |
-| **macOS 12+** | x86_64 + arm64 **universal** | ✅ Tier 1 (CI + notarized) | `.dmg` (notarized via `APPLE_*` secrets) | `pal/macos.rs:10` — `$SHELL`→zsh, `FSEvents`, `open` |
-| **BSD** (FreeBSD 14+, OpenBSD 7+, NetBSD, DragonFly) | x64/arm64 | ⚠️ Community / Best-effort | Manual `cargo tauri build` → binary/tarball; AppImage not applicable | `pal/bsd.rs:10` — `/bin/sh`, `kqueue`, `xdg-open` |
-| **Other POSIX** | — | ⚠️ Fallback | Uses `linux` adapter fallback `pal/mod.rs:54` | — |
+| **Windows 10/11** x86_64 | `x86_64-pc-windows-msvc` | ✅ | `NSIS .exe` (`LiteIDE_0.1.0_x64-setup.exe`) + `WiX .msi` (`LiteIDE_0.1.0_x64_en-US.msi`) + `portable .zip` | `pal/windows.rs:10` — PowerShell `powershell.exe -NoLogo`/`cmd`, `ReadDirectoryChangesW` via `notify`, `normalize_path` drive letters, `explorer` |
+| **Linux** x86_64 | `x86_64-unknown-linux-gnu` | ✅ | `AppImage` + `.deb` + `.rpm` (`targets:"all"`) | `pal/linux.rs:10` — `$SHELL→bash`, `inotify`, `xdg-open` |
+| **macOS 12+** universal | `universal-apple-darwin` (x64+arm64) | ✅ | `.dmg` notarized (`APPLE_CERTIFICATE` etc.) | `pal/macos.rs:10` — `$SHELL→zsh -l`, `FSEvents`, `open` |
+| **BSD** FreeBSD 14+/OpenBSD/NetBSD/DragonFly | x64/arm64 | ⚠️ Community (manual) | `cargo tauri build` → `target/release/liteide` + tarball | `pal/bsd.rs:10` — `/bin/sh`, `kqueue`, `xdg-open` → `gedit` |
+| **Other POSIX** | — | ⚠️ Fallback | `linux` adapter | `pal/mod.rs:54` `linux::LinuxAdapter` fallback |
 
-> **Will it work on BSD?** Yes — code compiles and runs. BSD uses the `BsdAdapter` (shares Linux/POSIX semantics, `notify` kqueue, shell `xdg-open`). Tauri officially supports Win/Linux/macOS; BSD requires manual build (install `webkit2gtk`/GTK, Rust, Node, `xdg-utils`) and is tested ad-hoc, not CI. No code changes needed — PAL abstracts all OS differences (Rule 5). WebView on BSD uses GTK WebKit same as Linux.
+Platform concerns abstracted via `PlatformAdapter` trait (`default_shell`, `watch_directory`, `normalize_path`, `open_in_file_manager`, `platform_name`) — core calls trait, never OS APIs directly (Rule 5). See `src-tauri/src/pal/windows.rs:35`, `linux.rs`, `macos.rs`, `bsd.rs` for `notify::RecommendedWatcher`.
+
+---
+
+## 5. Architecture Layers
+
+Implemented in exact order (§9):
+
+**LAYER 1 — UI Layer `src/`**
+- `EditorArea.tsx:14` — Monaco tab bar, split panes (horizontal+vertical `splitCount`), dirty `•`
+- `TabBar.tsx:7` — multi-tab, close ×
+- `monaco-config.ts:12` — languageForPath
+- `Sidebar/FileTree.tsx:12` — file tree create/rename/delete, one-click Notepad ↗
+- `Sidebar/SearchPanel.tsx:12` — global text search (`search_in_files`)
+- `BottomPanel/{Terminal,OutputPanel,ProblemsPanel}.tsx` — integrated shell (PAL), build/stream/kill, diagnostics
+- `MenuBar.tsx:5` — native OS menus via Tauri
+- `StatusBar.tsx:14` — language, cursor `Ln Col`, LSP status, theme toggle
+- `CommandPalette.tsx:14` — `Ctrl+Shift+P` fuzzy
+- `Settings.tsx:10` — TOML global + JSON per-project editor
+- `App.tsx:28` — composition: Sidebar + EditorArea + BottomPanel + StatusBar + Palette + Settings
+
+**LAYER 2 — Core Engine `src-tauri/src/core/`**
+- `file_manager.rs:22` — open/save/watch, recent, `list_dir` sorted dirs-first, `search_in_files` skips `.git/node_modules/target`, <100ms/10k
+- `editor_state.rs:22` — `Buffer {path,content,dirty,language}`, registry `HashMap`, `detect_language`
+- `lsp_client.rs:36` — `LspManager {servers:HashMap, configs}`, `start` spawns `Command::new().stdin piped stdout piped`, `which::which`, `default_lsp_config` per lang
+- `build_runner.rs:34` — `BuildRequest/RunRequest` → `gcc -o` / `g++ -std=c++17 -o` / `javac` / `python -m py_compile`, `execute_build/run` streams `stdout/stderr`
+- `plugin_manager.rs:32` — `PluginMetadata {id,name,version,languages}`, `EventBus {on/emit/off}`, `load_builtin` 3 langs
+- `config_manager.rs:22` — `GlobalConfig {theme,font_family,font_size,auto_save_interval,keybindings,lsp,recent_projects}` TOML + `ProjectConfig` JSON
+
+**LAYER 3 — Plugin System `src/plugins/`**
+- `plugin-api.ts:14` single source of truth (Rule 6):
+```ts
+interface LiteIDEPlugin { metadata:{id,name,version,languages:string[]}; activate(api:LiteIDEPluginAPI):void; deactivate():void }
+interface LiteIDEPluginAPI { commands:CommandsAPI; editor:EditorAPI; fs:FileSystemAPI; process:ProcessAPI; ui:UIAPI; events:EventBusAPI }
+```
+- `lang-c-cpp/index.ts`, `lang-java/index.ts`, `lang-python/index.ts` — register commands `c-cpp.build`, `python.run` etc., emit `build:build`/`lsp:start` via `events` only (Rule 2)
+
+**LAYER 4 — PAL `src-tauri/src/pal/`**
+- `mod.rs:23` `trait PlatformAdapter`, `current_platform() -> Box<dyn PlatformAdapter>` — `windows`/`linux`/`macos`/`bsd`, unknown → `linux` fallback
+
+IPC: `src-tauri/src/lib.rs:17` `invoke_handler![list_dir,file_tree,read_file,write_file,create_entry,delete_entry,rename_entry,search_in_files,detect_language,build_project,run_project,start_lsp,open_in_system_editor,…]` + `tauri_plugin_*`.
+
+---
+
+## 6. Feature Set (v1.0 scope)
+
+**MUST HAVE — shipped:**
+
+- [x] Syntax highlight C/C++/Java/Python (Monaco) `monaco-config.ts`
+- [x] Code completion via LSP `lsp_client.rs`
+- [x] Go-to-def / Find references via LSP
+- [x] Inline error/warning markers via diagnostics
+- [x] Hover docs via LSP
+- [x] One-click Build per language `OutputPanel.tsx:12` → `build_runner.rs`
+- [x] One-click Run per language
+- [x] Integrated terminal (OS shell via PAL `get_shell_config`) `Terminal.tsx`
+- [x] File explorer create/rename/delete `FileTree.tsx`
+- [x] Multi-tab editing `TabBar.tsx` + `editorStore.ts`
+- [x] Split panes H+V `EditorArea.tsx:50`
+- [x] Global file search `SearchPanel.tsx`
+- [x] Command palette `Ctrl+Shift+P` `CommandPalette.tsx`
+- [x] Customizable keybindings stored in TOML `Settings.tsx` + `config_manager.rs`
+- [x] Light/Dark themes `index.css:8` `[data-theme]` + `editorStore theme` persisted `localStorage` + TOML
+- [x] Auto-save configurable interval `config_manager auto_save_interval` + `Settings`
+- [x] Recent projects list `editor_state recent_files` + `GlobalConfig recent_projects`
+- [x] Per-project `.liteidrc` JSON `config_manager.rs` + `Settings` `.liteidrc` editor + `.liteidrc.example`
+- [x] One-click Notepad ↗ `FileTree.tsx:45` → `open_in_system_editor` (`notepad.exe` / `open -t` / `xdg-open`) `lib.rs:172`
+
+**NICE TO HAVE (post-v1.0 via plugins — not in core):**
+
+- [ ] Git status in tree + commit/push
+- [ ] Debugger UI (breakpoints/step/watch)
+- [ ] Snippet library / Minimap / Bracket colorizer / AI completion
+
+---
+
+## 7. Repository Structure (enforce this layout)
+
+```
+liteide/
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── lib.rs                    # AppState + all invoke handlers
+│   │   ├── core/
+│   │   │   ├── file_manager.rs
+│   │   │   ├── editor_state.rs
+│   │   │   ├── lsp_client.rs
+│   │   │   ├── build_runner.rs
+│   │   │   ├── plugin_manager.rs
+│   │   │   └── config_manager.rs
+│   │   └── pal/
+│   │       ├── mod.rs                # PlatformAdapter trait
+│   │       ├── windows.rs
+│   │       ├── linux.rs
+│   │       ├── macos.rs
+│   │       └── bsd.rs
+│   ├── Cargo.toml
+│   ├── tauri.conf.json               # productName LiteIDE, targets:all, windows nsis+wix
+│   ├── capabilities/default.json     # fs/dialog/shell/store permissions
+│   └── icons/*
+├── src/
+│   ├── App.tsx
+│   ├── main.tsx
+│   ├── index.css
+│   ├── vite-env.d.ts
+│   ├── test-setup.ts
+│   ├── components/
+│   │   ├── Editor/{EditorArea.tsx, TabBar.tsx, monaco-config.ts}
+│   │   ├── Sidebar/{FileTree.tsx, SearchPanel.tsx}
+│   │   ├── BottomPanel/{Terminal.tsx, OutputPanel.tsx, ProblemsPanel.tsx}
+│   │   ├── StatusBar.tsx
+│   │   ├── CommandPalette.tsx
+│   │   ├── Settings.tsx
+│   │   └── MenuBar.tsx
+│   ├── store/{editorStore.ts, fileStore.ts, pluginStore.ts}
+│   ├── assets/react.svg
+│   └── plugins/
+│       ├── plugin-api.ts             # single source of truth
+│       ├── lang-c-cpp/index.ts
+│       ├── lang-java/index.ts
+│       └── lang-python/index.ts
+├── plugins/                          # external plugin drop (plugin.json)
+│   └── README.md
+├── docs/{architecture.md, plugin-api.md, contributing.md, e2e.md}
+├── .github/workflows/{build-windows.yml, build-linux.yml, build-macos.yml}
+├── public/{tauri.svg, vite.svg}
+├── package.json
+├── vite.config.ts                    # manualChunks monaco 3.3MB
+├── tsconfig.json
+├── tsconfig.node.json
+├── pnpm-lock.yaml
+├── .liteidrc.example
+├── .gitignore
+└── index.html
+```
+
+---
+
+## 8. Extensibility Contract (never break)
+
+1. Core MUST NOT import plugin — plugins register via `plugin.json`/`load_builtin`.
+2. Plugins communicate ONLY via Event Bus — no direct imports.
+3. API is ADDITIVE ONLY — never remove/rename, version via optional fields.
+4. Every new language = one new plugin package — zero `src-tauri/` changes.
+5. Platform code ONLY in `src-tauri/src/pal/` — core uses `PlatformAdapter`.
+6. `src/plugins/plugin-api.ts` is single source of truth.
+
+Example Go:
+```ts
+// src/plugins/lang-go/index.ts
+import type { LiteIDEPlugin } from "./plugin-api";
+export default {
+  metadata:{id:"lang-go",name:"Go",version:"0.1.0",languages:["go"]},
+  activate(api){ api.commands.registerCommand("go.build","Go: Build",()=>api.events.emit("build:build",{language:"go"})); }
+} as LiteIDEPlugin;
+```
+
+---
+
+## 9. Implementation Order
+
+| Step | Task | Status |
+|---|---|---|
+| 1 | Scaffold Tauri+Vite+React+TS | ✅ `cargo create-tauri-app pnpm react-ts` + `package.json` |
+| 2 | PAL trait + win/linux/macos/bsd | ✅ `pal/mod.rs:23` + `windows/linux/macos/bsd.rs` |
+| 3 | FileManager + file tree UI | ✅ `file_manager.rs:22` + `FileTree.tsx:12` `list_dir` |
+| 4 | Monaco syntax highlight | ✅ `monaco-config.ts:12` + `EditorArea.tsx:14` |
+| 5 | Tab + multi-file editing | ✅ `TabBar.tsx:7` + `editorStore.ts:12` |
+| 6 | Generic LSP JSON-RPC stdio | ✅ `lsp_client.rs:36` |
+| 7 | lang-python (pylsp) | ✅ `lang-python/index.ts` |
+| 8 | lang-c-cpp (clangd) | ✅ `lang-c-cpp/index.ts` |
+| 9 | lang-java (jdtls) | ✅ `lang-java/index.ts` |
+| 10 | Build & Run + Output | ✅ `build_runner.rs:34` + `OutputPanel.tsx:12` |
+| 11 | Integrated terminal | ✅ `Terminal.tsx` + `get_shell_config` |
+| 12 | Plugin Manager + Event Bus | ✅ `plugin_manager.rs:32` + `plugin-api.ts:40` |
+| 13 | Command Palette | ✅ `CommandPalette.tsx:14` |
+| 14 | Light/Dark themes | ✅ `index.css:8` + `Settings.tsx` + `localStorage` |
+| 15 | Settings UI | ✅ `Settings.tsx:10` global TOML + per-project JSON |
+| 16 | GH Actions CI 3 platforms | ✅ `build-windows.yml` NSIS+MSI, `build-linux.yml` AppImage/deb/rpm, `build-macos.yml` notarized dmg |
+| 17 | E2E open→edit→build→run per lang | ✅ `docs/e2e.md` + `cargo test` + `vitest` 8 tests |
+
+---
+
+## 10. Quality & Performance Gates
+
+- Startup <2s cold, idle <150MB RAM (`cargo build --release` LTO `opt-level 3` `strip true`), binary <30MB (excl. LS) `Cargo.toml:37`
+- LSP <200ms p95, tree <100ms/10k `file_manager.rs` `WalkDir`
+- Rust zero warnings `cargo clippy -D warnings` clean (`src-tauri/Cargo.toml:37`), TS `strict` zero `any` `tsconfig.json:13`, `tsc --noEmit` clean
+- Coverage >70% core Rust (`file_manager`, `editor_state`, `lsp_client`, `build_runner`, `config_manager`, `plugin_manager` tests) + Vitest 8 tests `src/store/editorStore.test.ts`
+- `vite.config.ts:18` `manualChunks: {monaco:3.3MB, react:144KB, index:42KB}` — `pnpm build` 35s
+
+---
+
+## 11. What Not To Build (out of scope v1.0)
+
+Built-in Git UI (plugin), Debugger step-through (plugin), Marketplace/store, Cloud sync, Collaborative editing, Project templates/wizards, telemetry, languages beyond C/C++/Java/Python — keep core small is a feature.
 
 ---
 
 ## How to Run — Per Platform
 
 ### Prerequisites (all)
-
-- **Rust 1.77+** `rustc --version`, **Node 20+** `node --version`, **pnpm 9+** `pnpm --version`
-- Language servers/tools on `PATH` (optional but recommended): `clangd`, `pylsp`/`pyright`, `jdtls`, `gcc`, `g++`, `javac`, `python3`
+- Rust `1.77+`, Node `20+`, pnpm `9+`
+- Optional on PATH: `clangd`, `pylsp`/`pyright`, `jdtls`, `gcc`, `g++`, `javac`, `python3`
 
 ### Windows (PowerShell)
-
 ```powershell
-# Install Rust (rustup) + Node + pnpm
 winget install Rustlang.Rustup Nodejs.NodeJS
 npm i -g pnpm
-
-# Clone & run
-git clone https://github.com/ajit-ai/LiteIDE.git
-cd LiteIDE
+git clone https://github.com/ajit-ai/LiteIDE.git; cd LiteIDE
 pnpm install
-pnpm tauri dev          # dev (hot reload, Rust + Vite)
-pnpm tauri build        # release → src-tauri/target/release/bundle/nsis/*.exe + *.zip
-
-# Alternative (no Tauri, frontend only)
-pnpm dev    # http://localhost:1420
-pnpm build  # dist/
-pnpm test           # vitest (8 tests)
-cargo test --manifest-path src-tauri/Cargo.toml
+pnpm tauri dev        # hot reload 1420
+pnpm tauri build      # → nsis/LiteIDE_0.1.0_x64-setup.exe + msi/LiteIDE_0.1.0_x64_en-US.msi + liteide.exe portable
+pnpm dev              # frontend only http://localhost:1420
+pnpm test; cargo test --manifest-path src-tauri/Cargo.toml
 ```
+Need WiX for .msi: `winget install WiXToolset.WiXToolset`. WebView2 preinstalled Win10/11.
 
-System deps: none extra (WebView2 ships with Win10/11).
-
-### Linux (Ubuntu/Debian — bash)
-
+### Linux (Ubuntu/Debian)
 ```bash
-sudo apt update && sudo apt install -y \
-  libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 \
-  clangd gcc g++ openjdk-21-jdk python3 python3-pip
-
+sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 clangd gcc g++ openjdk-21-jdk python3
 git clone https://github.com/ajit-ai/LiteIDE.git && cd LiteIDE
-pnpm install
-pnpm tauri dev
-pnpm tauri build   # → AppImage + .deb + .rpm in src-tauri/target/*/release/bundle/
+pnpm install; pnpm tauri dev
+pnpm tauri build  # → AppImage + .deb + .rpm in target/.../bundle/
 ```
+Fedora `dnf install webkit2gtk4.1-devel ...`, Arch `pacman -S webkit2gtk`.
 
-Fedora: `sudo dnf install webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel`
-Arch: `sudo pacman -S webkit2gtk libappindicator-gtk3 librsvg`
-
-### macOS (zsh — Intel & Apple Silicon)
-
+### macOS (zsh universal)
 ```bash
-# Xcode CLT + Rust + Node via Homebrew
-xcode-select --install
-brew install rust node pnpm
-
-# Language tools (optional)
-brew install llvm python@3.11 openjdk@21
-# Eclipse JDT LS: brew install jdtls  (or download)
-
+xcode-select --install; brew install rust node pnpm llvm python@3.11 openjdk@21
 git clone https://github.com/ajit-ai/LiteIDE.git && cd LiteIDE
-pnpm install
-pnpm tauri dev
-pnpm tauri build   # universal .dmg → src-tauri/target/universal-apple-darwin/release/bundle/dmg/
-# For notarized release, set APPLE_CERTIFICATE, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID secrets (see build-macos.yml)
+pnpm install; pnpm tauri dev
+pnpm tauri build  # → target/universal-apple-darwin/bundle/dmg/*.dmg (set APPLE_* for notarize)
 ```
 
-### BSD (FreeBSD/OpenBSD/NetBSD — sh)
-
+### BSD (FreeBSD/OpenBSD)
 ```sh
-# FreeBSD 14 example
-pkg install rust node npm py311-pnpm webkit2-gtk4 python3 openjdk21 clang
-
-npm i -g pnpm
-git clone https://github.com/ajit-ai/LiteIDE.git && cd LiteIDE
-pnpm install
-pnpm tauri dev      # uses BsdAdapter (kqueue, xdg-open, /bin/sh)
-cargo tauri build   # manual binary — AppImage not supported; package via pkg/tar
-# Ensure: pkg install xdg-utils  (for open_in_file_manager)
+pkg install rust node npm py311-pnpm webkit2-gtk4 python3 openjdk21 clang xdg-utils
+npm i -g pnpm; git clone https://github.com/ajit-ai/LiteIDE.git && cd LiteIDE
+pnpm install; pnpm tauri dev  # BsdAdapter kqueue
+cargo tauri build  # binary → target/release/liteide
 ```
-
-OpenBSD/NetBSD similar — install `webkit2-gtk`, Rust via `pkg_add rust`, Node 20+. If WebView missing, fallback to `pnpm dev` (browser) + `cargo run` core.
 
 ---
 
-## Design & Architecture
+## One-Click Notepad / System Editor
 
-### Stack (mandatory, Section 3)
+**Explorer** each file has `Notepad ↗` (`FileTree.tsx:45`) — one click `invoke("open_in_system_editor",{path})` → `lib.rs:172` → `pal/*`:
+- Win: `notepad.exe {file}`
+- macOS: `open -t {file}`
+- Linux/BSD: `xdg-open → gedit`
+Filename click opens Monaco; `Notepad ↗` opens external. Also `invoke("open_in_file_manager")` opens Explorer/Finder.
 
+---
+
+## Packaging — One Command
+
+```powershell
+pnpm tauri build  # or cargo tauri build
 ```
-Desktop Shell: Tauri 2.x (Rust + WebView)
-Editor:        Monaco 0.52 (via @monaco-editor/react)
-UI:            React 18 + TypeScript strict + Zustand
-IPC:           Tauri invoke/emit (JSON)
-LSP:           stdio (child process per language)
-Config:        TOML global + JSON per-project .liteidrc
-Build:         Cargo + Vite, pnpm
-Tests:         cargo test + Vitest + Testing Library
-CI:            GitHub Actions (win/linux/macos)
-```
+| Win x64 | `bundle/nsis/LiteIDE_0.1.0_x64-setup.exe` (NSIS) + `bundle/msi/LiteIDE_0.1.0_x64_en-US.msi` (WiX, `windows:{nsis,wix}` in `tauri.conf.json:30`) — Next → Start Menu/desktop; `target/release/liteide.exe` → rename `LiteIDE.exe` portable |
+| Linux x64 | `bundle/appimage/*.AppImage` (`chmod +x` double-click), `bundle/deb/*.deb` (`dpkg -i`), `bundle/rpm/*.rpm` (`rpm -i`) |
+| macOS universal | `bundle/dmg/*.dmg` notarized → drag to Applications |
+| BSD | `target/release/liteide` + tarball — `pkg`/`xdg-utils` |
 
-### Layers (Section 5)
-
-```
-LAYER 1 UI            src/
-  EditorArea      → Monaco, TabBar, split panes (EditorArea.tsx, TabBar.tsx, monaco-config.ts)
-  Sidebar         → FileTree (list_dir), SearchPanel (search_in_files)
-  BottomPanel     → Terminal (OS shell via PAL), Output (build/run), Problems (LSP diagnostics)
-  MenuBar         → native menus via Tauri (MenuBar.tsx:5)
-  StatusBar       → lang, cursor (StatusBar.tsx), LSP, theme toggle
-  CommandPalette  → Ctrl+Shift+P fuzzy (CommandPalette.tsx)
-
-LAYER 2 Core Engine   src-tauri/src/core/
-  file_manager.rs   → open/save/watch, recent, tree (<100ms/10k)
-  editor_state.rs   → buffer registry, dirty tracking, detect_language
-  lsp_client.rs     → LspManager {start/stop/status}, stdio, which::which
-  build_runner.rs   → spawn gcc/g++/javac/python, stream output, kill
-  plugin_manager.rs → register, EventBus, builtin 3 plugins
-  config_manager.rs → GlobalConfig TOML (~/.config/LiteIDE/config.toml) + ProjectConfig JSON (.liteidrc)
-
-LAYER 3 Plugin System src/plugins/
-  plugin-api.ts     → single source of truth (Rule 6). Interfaces:
-    LiteIDEPlugin {metadata, activate(api), deactivate()}
-    LiteIDEPluginAPI {commands, editor, fs, process, ui, events}
-  lang-c-cpp/, lang-java/, lang-python/ → self-contained, Event Bus only (Rule 2)
-
-LAYER 4 PAL           src-tauri/src/pal/
-  mod.rs:23 trait PlatformAdapter {default_shell, normalize_path, open_in_file_manager, watch_directory, platform_name}
-  windows.rs / linux.rs / macos.rs / bsd.rs  ← all OS code lives here (Rule 5)
-  Core NEVER imports plugin or OS APIs directly (Rule 1)
-```
-
-### Repo Layout (Section 7)
-
-```
-liteide/
-├── src-tauri/
-│   ├── src/{main.rs, lib.rs, core/*, pal/*}
-│   ├── Cargo.toml, tauri.conf.json, capabilities/default.json
-├── src/
-│   ├── App.tsx, main.tsx, index.css
-│   ├── components/{Editor,Sidebar,BottomPanel,StatusBar,CommandPalette,Settings,MenuBar}
-│   ├── store/{editorStore,fileStore,pluginStore}
-│   ├── plugins/{plugin-api.ts, lang-c-cpp, lang-java, lang-python}
-│   ├── test-setup.ts, vite-env.d.ts
-├── plugins/           ← external plugin drop (plugin.json manifests)
-├── docs/{architecture.md, plugin-api.md, contributing.md, e2e.md}
-├── .github/workflows/{build-windows.yml, build-linux.yml, build-macos.yml}
-├── package.json, vite.config.ts, tsconfig.json, .liteidrc.example
-```
-
-### Extensibility Contract (Section 8 — never break)
-
-1. Core MUST NOT import plugin — plugins register via plugin.json.
-2. Plugins communicate ONLY via EventBus (`src/plugins/plugin-api.ts:40`).
-3. API is ADDITIVE ONLY — version with optional fields.
-4. New language = one new `src/plugins/lang-*/index.ts`, zero `src-tauri/` changes.
-5. OS code ONLY in `pal/`.
-6. `plugin-api.ts` is single source of truth.
-
-Example (Go):
-```ts
-// src/plugins/lang-go/index.ts
-import type { LiteIDEPlugin } from "../plugin-api";
-export default { metadata:{id:"lang-go", languages:["go"]}, activate(api){ api.commands.registerCommand("go.build","Go: Build",()=>api.events.emit("build:build",{language:"go"}))}} as LiteIDEPlugin;
-```
-
-### Quality & Performance Gates (Section 10)
-
-- Startup <2s cold, idle <150MB, binary <30MB, LSP <200ms p95, tree <100ms/10k, `cargo clippy -D warnings` clean, `strict` TS zero `any`, >70% core coverage. `vite.config.ts:18` manualChunks: monaco ~3.3MB isolated, react 144KB, index 42KB.
+CI uploads `windows-installers` (`nsis/*.exe` + `msi/*.msi`), `linux-bundles`, `macos-dmg` via `tauri-action@v0`.
 
 ---
 
 ## Configuration
 
-- **Global** `~/.config/LiteIDE/config.toml` (or `%APPDATA%\LiteIDE\config.toml` on Win): `theme`, `font_family`, `font_size`, `auto_save_interval`, `keybindings`, `lsp.*`, `recent_projects`
-- **Per-project** `.liteidrc` JSON at root: `build_command`, `run_command`, `language`, `env` — edit via Settings UI (MenuBar → Settings) or `.liteidrc.example`
+- **Global** `~/.config/LiteIDE/config.toml` (`%APPDATA%\LiteIDE\config.toml` Win): `theme`, `font_family`, `font_size`, `auto_save_interval`, `keybindings`, `lsp.*`, `recent_projects`
+- **Per-project** `.liteidrc` JSON: `build_command`, `run_command`, `language`, `env` — edit `Settings` (`MenuBar → Settings`) or `.liteidrc.example`
 
-## One-Click Notepad / System Editor
+## Keybindings (TOML persisted)
 
-You asked: **"user should just click once and notepad must open"** — done.
+`Ctrl+S` save, `Ctrl+Shift+P` palette, `Ctrl+B` build, `Ctrl+R` run, `Ctrl+F` find — edit `Settings → Keybindings`.
 
-- In **Explorer** each file row has a `Notepad ↗` button (right side). **One click** → opens the file in the native editor without leaving LiteIDE:
-  - **Windows:** `notepad.exe {file}` (`src-tauri/src/lib.rs:172` `open_in_system_editor` → `pal/windows.rs:10` `notepad.exe`)
-  - **macOS:** `open -t {file}` (TextEdit) (`pal/macos.rs:10`)
-  - **Linux/BSD:** `xdg-open {file}` → `gedit` fallback (`pal/linux.rs:10` / `pal/bsd.rs:10`)
-- Single-click on **file name** still opens Monaco inside LiteIDE; the `Notepad ↗` is the explicit one-click external path. Also available via command palette: `File: Open in System Editor` (future) and Tauri command `invoke("open_in_system_editor", {path})`.
-- File → `Open in File Manager` (explorer/finder/xdg-open) is separate (`invoke("open_in_file_manager")`).
+## E2E
 
-## Packaging — One Command for All Platforms
-
-`tauri.conf.json:26` `bundle.targets: "all"` + `build.beforeBuildCommand: "pnpm build"` — run once:
-
-```powershell
-pnpm tauri build   # or cargo tauri build
-```
-
-Outputs (CI also builds via `build-*.yml`):
-
-| Platform | Command | Outputs | Installer behavior |
-|---|---|---|---|
-| **Windows** x64 | `pnpm tauri build --target x86_64-pc-windows-msvc` | `src-tauri/target/release/bundle/nsis/LiteIDE_0.1.0_x64-setup.exe` (NSIS) + `LiteIDE_0.1.0_x64_en-US.msi` (if wix) + portable `*.zip` | One-click Next → desktop + Start Menu shortcut; portable zip = unzip and run `LiteIDE.exe` |
-| **Linux** x64 | `pnpm tauri build --target x86_64-unknown-linux-gnu` | `*.AppImage` (one-click `chmod +x` + double-click), `*.deb` (`sudo dpkg -i`), `*.rpm` (`sudo rpm -i`) | AppImage = no install; deb/rpm = system package |
-| **macOS** universal | `pnpm tauri build --target universal-apple-darwin` | `LiteIDE_0.1.0_universal.dmg` (notarized when `APPLE_*` secrets set) | One-click drag to Applications; notarized → no Gatekeeper warning |
-| **BSD** | `cargo tauri build` (manual) | `target/release/liteide` binary + `bundle/` tarball | `sudo pkg install` deps then `./liteide` or `sudo make install` |
-
-CI auto-uploads artifacts (`actions/upload-artifact@v4`). No Store/Marketplace in v1.0 (Rule 11).
-
-## Keybindings (customizable, persisted in TOML)
-
-`Ctrl+S` save, `Ctrl+Shift+P` palette, `Ctrl+B` build, `Ctrl+R` run, `Ctrl+F` find — edit in `Settings → Keybindings`.
-
-## E2E (Section 9 Step 17)
-
-See `docs/e2e.md` — open folder → edit → save → Build → Run for each language. `pnpm test` + `cargo test` in CI.
+See `docs/e2e.md` — open folder → edit → save → Build → Run per lang. `pnpm test` + `cargo test` in CI.
 
 ## Contributing
 
-See `docs/contributing.md` — keep core small (no built-in Git/Debugger/marketplace/cloud/collab per Section 11).
+See `docs/contributing.md` — no Git/Debugger/marketplace in core (Section 11). Keep `clippy` clean, `strict` TS.
 
 ## License
 
