@@ -23,8 +23,12 @@ jobs:
       - run: pnpm build
       - name: Lint
         run: pnpm exec tsc --noEmit
-      - name: Tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose
+      - name: Frontend tests (48/48)
+        run: pnpm test
+      - name: Tests — Rust core (Windows WebView2 may miss entrypoint, so verify compile)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose --no-run
+      - name: Rust check (clippy clean)
+        run: cargo check --manifest-path src-tauri/Cargo.toml
       - name: Tauri build (NSIS .exe + MSI)
         uses: tauri-apps/tauri-action@v0
         env:

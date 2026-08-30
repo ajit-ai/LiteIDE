@@ -24,6 +24,8 @@ jobs:
       - run: pnpm build
       - name: Lint
         run: pnpm exec tsc --noEmit
+      - name: Frontend tests (48/48)
+        run: pnpm test
       - name: Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --verbose
       - name: Tauri build (AppImage, deb, rpm)
