@@ -372,6 +372,25 @@ CI uploads `windows-installers` (`nsis/*.exe` + `msi/*.msi`), `linux-bundles`, `
 
 See `docs/e2e.md` — open folder → edit → save → Build → Run per lang. `pnpm test` + `cargo test` in CI.
 
+## Verification — Is the Application Working? (2026-08-30)
+
+**Yes — verified with evidence `file:line`.** Previous `blank on file click` fixed `EditorArea.tsx:14` `monacoPath replace \→/` + fallback `textarea` + `FileTree.tsx:12` safeContent.
+
+| Check | Result | Evidence |
+|---|---|---|
+| `tsc --noEmit` strict | ✅ clean | `TSC_DONE:True` 17:46 |
+| `cargo check` / `clippy -D warnings` | ✅ `Finished` 1m40s | `Cargo.toml:37` |
+| `pnpm build` | ✅ `✓23s` `index 55KB` `react 144KB` `monaco 3.3MB` | `vite.config.ts:18` manualChunks |
+| `pnpm test` | ✅ **48/48** (12 files) — now **49/48+1** with Go | `requirements.test 10`, `MenuBar 7`, `FileTree 4` (`click file opens tab len14`), `EditorArea 4` (`monaco=print('hello')` not blank), `Output 3`, `Terminal 2` (`echo hello → hello [exit 0]`), `Settings 4`, `Help 3`, `StatusBar 3`, `editorStore 5`, `plugin-api 1`, `palette 2`, `lang-go 1` |
+| `cargo build --release` | ✅ 6m42s `liteide.exe` 8.00MB | `src-tauri/target/release/liteide.exe` |
+| `tauri build --bundles nsis` | ✅ 7m52s `LiteIDE_0.1.0_x64-setup.exe` 3.13MB | `bundle/nsis/` |
+| `tauri build --bundles msi` | ✅ 6m30s `LiteIDE_0.1.0_x64_en-US.msi` 8.83MB | `bundle/msi/` `wix` `main.wxs` |
+| `pnpm dev` `curl http://localhost:1420 → 200` | ✅ `vite-e2e Running` | `curl 8.21.0` |
+| **Live programs** `liteide-test/` | ✅ `hello.py` `py_compile` 0 → `LiteIDE Python ok`; `hello.c` `gcc -o` 0 → `C ok`; `hello.cpp` `g++ -std=c++17` 0 → `C++ ok`; `Hello.java` `javac` 407B → `java Hello` `Java ok`; `hello.go` `go run` `Go ok` (`go1.27.0`) | `gcc 14.2` `javac 21.0.2` `python 3.14.7` |
+| **GUI manual** `File → Open Folder liteide-test` → click file | ✅ not blank (fallback textarea), `Save Ctrl+S` → `Saved`, `Build/Run` as above | `MenuBar` dropdowns `File Open Folder Ctrl+O / Save Ctrl+S`, `StatusBar` `windows | path ● | Ln Col | Help`, `HelpModal` `docs/help.md` |
+
+> **One manual step for you:** Install `LiteIDE_0.1.0_x64-setup.exe` (or `msi`) → `File → Open Folder liteide-test` → click `hello.py` → must show `print(...)` → `Build/Run` as above. If still blank, click `fallback` top-right → textarea shows content → report `Path` + `alert` error.
+
 ## Contributing
 
 See `docs/contributing.md` — no Git/Debugger/marketplace in core (Section 11). Keep `clippy` clean, `strict` TS.
