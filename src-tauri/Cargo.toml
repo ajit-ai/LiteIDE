@@ -1,0 +1,43 @@
+[package]
+name = "liteide"
+version = "0.1.0"
+description = "LiteIDE — Lightweight cross-platform IDE"
+authors = ["LiteIDE Contributors"]
+edition = "2021"
+repository = "https://github.com/ajit-ai/LiteIDE"
+license = "MIT"
+rust-version = "1.77"
+
+[lib]
+name = "liteide_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+notify = "6"
+walkdir = "2"
+toml = "0.8"
+dirs = "5"
+which = "6"
+anyhow = "1"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
