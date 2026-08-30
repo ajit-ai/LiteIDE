@@ -1,3 +1,4 @@
+pub mod bsd;
 pub mod linux;
 pub mod macos;
 pub mod windows;
@@ -48,8 +49,21 @@ pub fn current_platform() -> Box<dyn PlatformAdapter> {
     {
         Box::new(macos::MacosAdapter)
     }
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
     {
+        Box::new(bsd::BsdAdapter)
+    }
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
+    {
+        // Unknown POSIX fallback behaves like Linux/BSD
         Box::new(linux::LinuxAdapter)
     }
 }
