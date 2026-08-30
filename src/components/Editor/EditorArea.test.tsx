@@ -3,6 +3,17 @@ import { render, screen } from "@testing-library/react";
 import EditorArea from "./EditorArea";
 import { useEditorStore } from "../../store/editorStore";
 
+vi.mock("./monaco-config", () => ({
+  languageForPath: (p: string) => {
+    if (p.endsWith(".py")) return "python";
+    if (p.endsWith(".c")) return "c";
+    if (p.endsWith(".cpp")) return "cpp";
+    if (p.endsWith(".java")) return "java";
+    return "plaintext";
+  },
+  EDITOR_OPTIONS: {},
+  setupMonaco: () => {},
+}));
 vi.mock("@monaco-editor/react", () => ({
   default: ({ value }: { value: string }) => <div data-testid="monaco">{value}</div>,
 }));
