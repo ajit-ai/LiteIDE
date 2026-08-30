@@ -15,6 +15,7 @@ members = [
   "crates/debug",
   "crates/terminal",
   "crates/plugin",
+  "apps/desktop/src-tauri",
 ]
 resolver = "2"
 
