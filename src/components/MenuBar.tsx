@@ -79,12 +79,39 @@ export default function MenuBar(props: MenuHandlers) {
       </Menu>
 
       <Menu id="edit" label="Edit">
-        <Item label="Undo" shortcut="Ctrl+Z" onClick={() => document.execCommand("undo")} />
-        <Item label="Redo" shortcut="Ctrl+Y" onClick={() => document.execCommand("redo")} />
+        <Item label="Undo" shortcut="Ctrl+Z" onClick={() => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { trigger?: (src: string, id: string, payload: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "undo", null);
+          else document.execCommand("undo");
+        }} />
+        <Item label="Redo" shortcut="Ctrl+Y" onClick={() => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { trigger?: (src: string, id: string, payload: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "redo", null);
+          else document.execCommand("redo");
+        }} />
         <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0" }} />
-        <Item label="Cut" shortcut="Ctrl+X" onClick={() => document.execCommand("cut")} />
-        <Item label="Copy" shortcut="Ctrl+C" onClick={() => document.execCommand("copy")} />
-        <Item label="Paste" shortcut="Ctrl+V" onClick={() => document.execCommand("paste")} />
+        <Item label="Cut" shortcut="Ctrl+X" onClick={() => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { getSelection?: () => unknown; trigger?: (a: string, b: string, c: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "editor.action.clipboardCutAction", null);
+          else document.execCommand("cut");
+        }} />
+        <Item label="Copy" shortcut="Ctrl+C" onClick={() => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { trigger?: (a: string, b: string, c: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "editor.action.clipboardCopyAction", null);
+          else document.execCommand("copy");
+        }} />
+        <Item label="Paste" shortcut="Ctrl+V" onClick={async () => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { trigger?: (a: string, b: string, c: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "editor.action.clipboardPasteAction", null);
+          else {
+            try { const t = await navigator.clipboard.readText(); document.execCommand("insertText", false, t); } catch { document.execCommand("paste"); }
+          }
+        }} />
+        <Item label="Select All" shortcut="Ctrl+A" onClick={() => {
+          const ed = (window as unknown as Record<string, unknown>).__monacoEditor as { trigger?: (a: string, b: string, c: unknown) => void } | null;
+          if (ed?.trigger) ed.trigger("menu", "editor.action.selectAll", null);
+          else document.execCommand("selectAll");
+        }} />
         <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0" }} />
         <Item label="Find (Search Panel)" shortcut="Ctrl+F" onClick={props.onShowSearch} />
         <Item label="Save File" shortcut="Ctrl+S" onClick={props.onSave} />
