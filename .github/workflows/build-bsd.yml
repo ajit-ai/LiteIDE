@@ -1,0 +1,20 @@
+name: Build BSD (FreeBSD)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build-bsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build in FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          run: |
+            pkg install -y rust node npm py311-pnpm webkit2-gtk4
+            npm i -g pnpm
+            pnpm install --frozen-lockfile
+            cargo test --workspace
+            pnpm --filter desktop build
+            cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --release
