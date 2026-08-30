@@ -11,17 +11,67 @@ Lightweight, fast, extensible IDE — **Tauri (Rust) + Angular + Monaco + xterm.
 - **Protocols:** LSP / DAP / JSON-RPC — no custom parsers for C/C++/Java/Python (reuse `clangd`, `jdtls`, `pylsp`)
 - **IPC:** Tauri IPC (Angular ↔ Rust)
 
-## Architecture (§3)
+## Architecture (§3) — Full Design
 
 ```
-QuantsMind IDE
-├─ UI Layer (Angular, Monaco, xterm.js) — MenuBar, ActivityBar, Sidebar (Explorer/Search/SC/Extensions), EditorArea (Tabs+Monaco), BottomPanel (Terminal/Output/Problems/Debug Console), StatusBar
-├─ Application Bridge (Tauri IPC)
-├─ IDE Core (Rust crates: ide-core, workspace, document, filesystem, process, platform, event-bus, command, configuration, language, lsp-client, build, debug, terminal, plugin)
-└─ Platform Abstraction (Windows/Linux/macOS) — filesystem, process, shell, env, paths, executable discovery
+┌──────────────────────────────────────────────────────┐
+│                    QUANTSMIND IDE                    │
+├──────────────────────────────────────────────────────┤
+│                      UI LAYER                        │
+│ Angular + Monaco + xterm.js                          │
+│ MenuBar, ActivityBar, Sidebar, EditorArea,           │
+│ BottomPanel (Terminal/Output/Problems/Debug),        │
+│ StatusBar                                            │
+├──────────────────────────────────────────────────────┤
+│                   APPLICATION BRIDGE                 │
+│ Tauri IPC (Angular ↔ Rust)                           │
+├──────────────────────────────────────────────────────┤
+│                      IDE CORE                        │
+│ workspace, document, filesystem, process, platform,  │
+│ event-bus, command, configuration, language,         │
+│ lsp-client, build, debug, terminal, plugin           │
+├──────────────────────────────────────────────────────┤
+│                PLATFORM ABSTRACTION                  │
+│ Windows (CreateProcess, ReadDirectoryChangesW,       │
+│  DirectWrite) | Linux (fork+exec, inotify, FreeType) │
+│  | macOS (fork+exec, FSEvents, CoreText)             │
+└──────────────────────────────────────────────────────┘
 ```
 
-**Core Rules (§4):** UI no business logic → IPC; Language independence via `LanguageProvider`; Build via `BuildProvider`; Debug via generic `DAP`; Platform isolated; Extension-first.
+**Core Rules (§4):** UI no business logic → IPC; Language independence `LanguageProvider` (no hard `C`/Java); Build via `BuildProvider` `detect_project/configure/build/clean/run` (CMake/Make/Java/Python); Debug via generic `DAP` (not GDB/LLDB direct); Platform isolated (`filesystem/process/shell/env/paths/executable_discovery`); Extension-first (manifest `plugin.toml` [capabilities] `languages/build/debug`).
+
+**UI Layer (§7):**
+```
+AppShell
+├── MenuBar (native Tauri)
+├── ActivityBar
+├── Sidebar (Explorer, Search, Source Control, Extensions)
+├── EditorArea (EditorTabs + Monaco)
+├── BottomPanel (Terminal xterm.js + Output + Problems + Debug Console)
+└── StatusBar
+```
+Dark first, minimal, responsive.
+
+**Core Engine (§5):** 15 crates — `ide-core` (facade), `workspace` (id/root/config/openDocuments/build/launch), `document` (id/uri/language/content/version/dirty/encoding, multi-tab), `filesystem` (open/save/watch), `process` (spawn/kill/stdout/stderr/env/cwd), `platform` (fs/process/shell/env/paths), `event-bus` (typed `WorkspaceOpened`/`FileSaved`/`BuildStarted`/`DebugStopped`/`LanguageServerStarted`), `command` (`workspace.open`/`file.save`/`build.run`/`debug.start`), `configuration` (global TOML + per-project `.ide/`), `language` (`LanguageProvider` `language_id/file_extensions/detect_project/start_server`), `lsp-client` (generic JSON-RPC `LanguageService→LspClient→LSP Process`), `build` (`BuildService→BuildProvider→BuildTask`), `debug` (`Debug UI→DebugService→DAP Client→Debug Adapter`), `terminal` (`TerminalService→PTYManager→ShellDetector` PowerShell/cmd/bash/zsh), `plugin` (`PluginManager→Registry/Loader/Lifecycle/Permission`).
+
+**Plugin System (§21):** `LanguagePlugin/BuildPlugin/DebugPlugin/ThemePlugin` via `PluginAPI`:
+```ts
+interface LiteIDEPluginAPI {
+  commands.register(id, handler); commands.execute(id);
+  editor.getActiveFile(); editor.insertText();
+  fs.readFile/writeFile/watchDirectory;
+  process.spawn(cmd, args, opts);
+  ui.registerPanel(id, component); ui.showNotification(msg, level);
+  events.on(event, handler); events.emit(event);
+}
+```
+Built-in: `language-c/cpp→clangd`, `language-java→jdtls`, `language-python→pylsp`, `terminal`; Future: `lang-go→gopls`, `lang-rust→rust-analyzer`, `git→libgit2`, `docker`, `ai-assistant` — zero core change.
+
+**PAL (§20):** `PlatformService → filesystem()/process()/shell()/environment()/paths()/executable_discovery()` — Windows `CreateProcess`/`ReadDirectoryChangesW`/`DirectWrite`, Linux `inotify`/`FreeType`, macOS `FSEvents`/`CoreText`.
+
+**Data Flows:**
+- *Open File:* `File Explorer → openFile event → File System → Editor State → Monaco (language=c) → PluginManager → lang-c-cpp spawns clangd → LSP diagnostics/completions*
+- *Build & Run:* `Ctrl+F5 → build-and-run → Build & Run Manager → ask LanguageProvider → {cmd:"gcc",args:["-o","out","file.c"]} → spawn → stdout/stderr → Output → Terminal`
 
 ## Repository Structure (§6)
 
