@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# LiteIDE test artifacts (keep sources, ignore binaries)
+liteide-test/*.exe
+liteide-test/*.class
+liteide-test/__pycache__/
+liteide-test/hello
+liteide-test/hello_cpp
+src-tauri/target/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
