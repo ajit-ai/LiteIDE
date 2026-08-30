@@ -18,6 +18,8 @@ import { EventBus } from "./plugins/plugin-api";
 import langPython from "./plugins/lang-python";
 import langCCpp from "./plugins/lang-c-cpp";
 import langJava from "./plugins/lang-java";
+import gitStatus from "./plugins/git-status";
+import debuggerPlugin from "./plugins/debugger";
 
 const eventBus = new EventBus();
 
@@ -65,6 +67,8 @@ export default function App() {
     langPython.activate(api as never);
     langCCpp.activate(api as never);
     langJava.activate(api as never);
+    gitStatus.activate(api as never);
+    debuggerPlugin.activate(api as never);
   }, []);
 
   // Keyboard shortcuts
