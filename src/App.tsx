@@ -20,6 +20,7 @@ import langCCpp from "./plugins/lang-c-cpp";
 import langJava from "./plugins/lang-java";
 import gitStatus from "./plugins/git-status";
 import debuggerPlugin from "./plugins/debugger";
+import langGo from "./plugins/lang-go";
 
 const eventBus = new EventBus();
 
@@ -69,6 +70,7 @@ export default function App() {
     langJava.activate(api as never);
     gitStatus.activate(api as never);
     debuggerPlugin.activate(api as never);
+    langGo.activate(api as never);
   }, []);
 
   // Keyboard shortcuts
