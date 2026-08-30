@@ -195,6 +195,38 @@ fn open_in_system_editor(path: String) -> Result<(), String> {
     result.map_err(|e| format!("failed to open system editor ({}): {}", platform, e))
 }
 
+/// Execute arbitrary shell command (for Terminal) — returns stdout/stderr
+#[tauri::command]
+async fn execute_shell(command: String, cwd: Option<String>) -> Result<BuildOutput, String> {
+    let platform = current_platform().platform_name().to_string();
+    let (shell, shell_arg) = if platform == "windows" {
+        // Use powershell if available, else cmd
+        let shell = current_platform().default_shell();
+        (shell.shell, shell.args.get(0).cloned().unwrap_or_else(|| "-Command".to_string()))
+    } else {
+        ("/bin/sh".to_string(), "-c".to_string())
+    };
+    let mut cmd = tokio::process::Command::new(&shell);
+    if platform == "windows" && shell.to_lowercase().contains("powershell") {
+        cmd.arg(shell_arg).arg(&command);
+    } else if platform == "windows" {
+        cmd.arg("/C").arg(&command);
+    } else {
+        cmd.arg("-c").arg(&command);
+    }
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    let output = cmd.output().await.map_err(|e| e.to_string())?;
+    Ok(BuildOutput {
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        success: output.status.success(),
+        exit_code: output.status.code(),
+    })
+}
+
 // --- Plugin ---
 #[tauri::command]
 fn list_plugins(state: tauri::State<AppState>) -> Vec<core::plugin_manager::PluginMetadata> {
@@ -251,6 +283,7 @@ pub fn run() {
             platform_name,
             open_in_file_manager,
             open_in_system_editor,
+            execute_shell,
             list_plugins
         ])
         .run(tauri::generate_context!())
