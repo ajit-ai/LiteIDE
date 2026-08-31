@@ -2,12 +2,12 @@
   <!-- MenuBar (native via Tauri, but web fallback) -->
   <div class="menubar">
     <span class="logo">QuantsMind IDE</span>
-    <span class="menu" (click)="showHelp()">File</span>
-    <span class="menu" (click)="showHelp()">Edit</span>
-    <span class="menu" (click)="showHelp()">View</span>
-    <span class="menu" (click)="showHelp()">Run</span>
+    <span class="menu" (click)="openFolder()">File</span>
+    <span class="menu" (click)="saveActive()">Edit</span>
+    <span class="menu" (click)="isDark=!isDark">View</span>
+    <span class="menu" (click)="saveAll()">Run</span>
     <span class="menu" (click)="showHelp()">Help</span>
-    <span class="spacer">Small core, infinite reach — C/C++ · Java · Python</span>
+    <span class="spacer">Small core, infinite reach — C/C++ · Java · Python — Ctrl+S Save | Ctrl+O Open</span>
   </div>
 
   <div class="main-row">
@@ -56,21 +56,22 @@
     <div class="editor-area">
       <div class="tabs">
         @for (tab of tabs; track tab.path) {
-          <span class="tab" [class.active]="tab.path===activePath" (click)="activePath=tab.path">{{ tab.name }} <span (click)="closeTab(tab.path)">×</span></span>
+          <span class="tab" [class.active]="tab.path===activePath" (click)="activePath=tab.path">{{ tab.name }}{{ tab.dirty ? ' •' : '' }} <span (click)="closeTab(tab.path)">×</span></span>
         }
         @if (tabs.length===0) {
           <span class="tab active">Welcome</span>
         }
+        <span style="margin-left:auto; font-size:11px; color:#858585; padding:6px;">{{ activePath || '' }} {{ tabs.find(t=>t.path===activePath)?.dirty ? '● Modified — Ctrl+S to save' : '' }}</span>
       </div>
-      <div class="monaco">
+      <div class="monaco" style="flex:1; display:flex;">
         @if (tabs.length===0) {
-          <div class="placeholder">
+          <div class="placeholder" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#858585;">
             <h3>No file open</h3>
             <p>Open a file from Explorer or press Ctrl+O</p>
             <p class="hint">{{ greetingMessage() }}</p>
           </div>
         } @else {
-          <textarea class="fallback" [value]="activeContent" (input)="onEdit($event)" placeholder="Edit — Ctrl+S to save"></textarea>
+          <qm-monaco [value]="activeContent" [language]="activeLanguage" [theme]="isDark ? 'vs-dark' : 'vs'" (valueChange)="onMonacoChange($event)" style="flex:1; min-height:300px;"></qm-monaco>
         }
       </div>
 

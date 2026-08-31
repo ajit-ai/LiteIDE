@@ -1,12 +1,13 @@
-import { Component, signal } from "@angular/core";
+import { Component, signal, HostListener } from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import { invoke } from "@tauri-apps/api/core";
+import { MonacoEditorComponent } from "./editor/monaco-editor.component";
 
-interface Tab { path: string; name: string; content: string; }
+interface Tab { path: string; name: string; content: string; dirty: boolean; language: string; }
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, MonacoEditorComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })
@@ -22,6 +23,20 @@ export class AppComponent {
 
   get activeContent() {
     return this.tabs.find((t) => t.path === this.activePath)?.content ?? "";
+  }
+
+  get activeLanguage() {
+    const t = this.tabs.find((t) => t.path === this.activePath);
+    if (!t) return "plaintext";
+    const p = t.path.toLowerCase();
+    if (p.endsWith(".c")) return "c";
+    if (p.endsWith(".cpp") || p.endsWith(".cc") || p.endsWith(".hpp")) return "cpp";
+    if (p.endsWith(".java")) return "java";
+    if (p.endsWith(".py")) return "python";
+    if (p.endsWith(".rs")) return "rust";
+    if (p.endsWith(".ts") || p.endsWith(".tsx")) return "typescript";
+    if (p.endsWith(".js")) return "javascript";
+    return "plaintext";
   }
 
   constructor() {
@@ -76,10 +91,25 @@ export class AppComponent {
         : name.endsWith(".c")
           ? '#include <stdio.h>\nint main(){printf("C ok\\n");}'
           : '#include <iostream>\nint main(){std::cout<<"C++ ok\\n";}';
+    const lang = name.endsWith(".java") ? "java" : name.endsWith(".py") ? "python" : name.endsWith(".c") ? "c" : "cpp";
     const path = `/${name}`;
     const existing = this.tabs.find((t) => t.path === path);
-    if (!existing) this.tabs.push({ path, name, content });
+    if (!existing) this.tabs.push({ path, name, content, dirty: false, language: lang });
     this.activePath = path;
+  }
+
+  async saveActive() {
+    const tab = this.tabs.find((t) => t.path === this.activePath);
+    if (!tab) return;
+    try {
+      await invoke("write_file", { path: tab.path, content: tab.content });
+      tab.dirty = false;
+      this.greetingMessage.set(`Saved ${tab.name}`);
+    } catch (e) { this.greetingMessage.set(String(e)); }
+  }
+
+  saveAll() {
+    this.tabs.forEach((t) => { if (t.dirty) this.saveActive(); });
   }
 
   closeTab(path: string) {
@@ -90,10 +120,27 @@ export class AppComponent {
   onEdit(e: Event) {
     const v = (e.target as HTMLTextAreaElement).value;
     const t = this.tabs.find((t) => t.path === this.activePath);
-    if (t) t.content = v;
+    if (t) { t.content = v; t.dirty = true; }
+  }
+
+  onMonacoChange(value: string) {
+    const t = this.tabs.find((t) => t.path === this.activePath);
+    if (t) { t.content = value; t.dirty = true; }
   }
 
   showHelp() {
     this.greetingMessage.set("Help: File→Open Folder → Edit → Save Ctrl+S → Build Ctrl+B → Run Ctrl+R — docs/help.md");
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKey(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      this.saveActive();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      this.openFolder();
+    }
   }
 }
