@@ -3,12 +3,13 @@ import { RouterOutlet } from "@angular/router";
 import { invoke } from "@tauri-apps/api/core";
 import { MonacoEditorComponent } from "./editor/monaco-editor.component";
 import { CommandPaletteComponent, Cmd } from "./command-palette/command-palette.component";
+import { XtermComponent } from "./terminal/xterm.component";
 
 interface Tab { path: string; name: string; content: string; dirty: boolean; language: string; }
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, MonacoEditorComponent, CommandPaletteComponent],
+  imports: [RouterOutlet, MonacoEditorComponent, CommandPaletteComponent, XtermComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })
@@ -21,6 +22,8 @@ export class AppComponent {
   activePath: string | null = null;
   workspaceRoot: string | null = null;
   lastBuild: string | null = null;
+
+  shellInfo = "Terminal — xterm.js + PTY — multiple sessions";
 
   get activeContent() {
     return this.tabs.find((t) => t.path === this.activePath)?.content ?? "";
@@ -131,6 +134,16 @@ export class AppComponent {
 
   showHelp() {
     this.greetingMessage.set("Help: File→Open Folder → Edit → Save Ctrl+S → Build Ctrl+B → Run Ctrl+R — docs/help.md");
+  }
+
+  async newTerminal() {
+    try {
+      const sess = await invoke<{ id: string; shell: { name: string; path: string } }>("create_terminal", { shell: null, cwd: this.workspaceRoot });
+      this.shellInfo = `Terminal ${sess.id} — ${sess.shell.name} ${sess.shell.path}`;
+      this.bottomTab = "terminal";
+    } catch (e) {
+      this.shellInfo = `New terminal failed: ${String(e)} — xterm.js ready`;
+    }
   }
 
   paletteOpen = false;
