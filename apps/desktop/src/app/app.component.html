@@ -22,13 +22,20 @@
     <!-- Sidebar -->
     <div class="sidebar">
       @if (sidebarTab==='explorer') {
-        <div class="pane-title">Explorer</div>
+        <div class="pane-title">Explorer — Phase 2</div>
         <div class="explorer">
           <button (click)="openFolder()">Open Folder</button>
-          <div class="file" (click)="openSample('Hello.java')">Hello.java</div>
-          <div class="file" (click)="openSample('hello.c')">hello.c</div>
-          <div class="file" (click)="openSample('hello.py')">hello.py</div>
-          <div class="hint">{{ workspaceRoot || 'No folder opened' }}</div>
+          <div style="display:flex;gap:4px;margin:6px 0">
+            <button (click)="createFile()">+ File</button>
+            <button (click)="createFolder()">+ Folder</button>
+            <button (click)="renameSelected()">Rename</button>
+            <button (click)="deleteSelected()">Delete</button>
+          </div>
+          <div class="file" (click)="openSample('Hello.java')">Hello.java (sample)</div>
+          <div class="file" (click)="openSample('hello.c')">hello.c (sample)</div>
+          <div class="file" (click)="openSample('hello.py')">hello.py (sample)</div>
+          <div class="hint">{{ workspaceRoot || 'No folder opened' }} — .ide/ auto</div>
+          <div class="hint">Watcher: polling list_dir every 2s (notify future)</div>
         </div>
       }
       @if (sidebarTab==='search') {

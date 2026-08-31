@@ -28,9 +28,44 @@ export class AppComponent {
     invoke<string>("greet", { name: "QuantsMind" }).then((t) => this.greetingMessage.set(t));
   }
 
-  openFolder() {
-    this.workspaceRoot = "F:\\QuantsMind\\Demo";
-    this.greetingMessage.set("Workspace: " + this.workspaceRoot);
+  async openFolder() {
+    const root = prompt("Workspace root (e.g., C:\\proj):", this.workspaceRoot || "F:\\QuantsMind\\Demo");
+    if (!root) return;
+    try {
+      const ws = await invoke<{ id: string; root: string; name: string }>("open_workspace", { path: root });
+      this.workspaceRoot = ws.root;
+      this.greetingMessage.set(`Workspace opened: ${ws.name} (.ide/ created)`);
+    } catch (e) {
+      this.greetingMessage.set(`Open failed: ${String(e)}`);
+    }
+  }
+
+  async createFile() {
+    if (!this.workspaceRoot) return this.greetingMessage.set("Open folder first");
+    const name = prompt("New file (relative to workspace):", "hello.c");
+    if (!name) return;
+    const full = `${this.workspaceRoot}\\${name}`;
+    try { await invoke("create_file", { path: full }); this.greetingMessage.set(`Created ${name}`); } catch (e) { this.greetingMessage.set(String(e)); }
+  }
+
+  async createFolder() {
+    if (!this.workspaceRoot) return;
+    const name = prompt("New folder:", "src");
+    if (!name) return;
+    try { await invoke("create_dir", { path: `${this.workspaceRoot}\\${name}` }); this.greetingMessage.set(`Folder ${name} created`); } catch (e) { this.greetingMessage.set(String(e)); }
+  }
+
+  async renameSelected() {
+    if (!this.activePath) return;
+    const to = prompt("Rename to:", this.activePath);
+    if (!to || to === this.activePath) return;
+    try { await invoke("rename_file", { from: this.activePath, to }); this.greetingMessage.set(`Renamed to ${to}`); this.activePath = to; } catch (e) { this.greetingMessage.set(String(e)); }
+  }
+
+  async deleteSelected() {
+    if (!this.activePath) return;
+    if (!confirm(`Delete ${this.activePath}?`)) return;
+    try { await invoke("delete_path", { path: this.activePath }); this.closeTab(this.activePath); this.greetingMessage.set(`Deleted ${this.activePath}`); } catch (e) { this.greetingMessage.set(String(e)); }
   }
 
   openSample(name: string) {

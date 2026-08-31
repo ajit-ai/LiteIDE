@@ -1029,11 +1029,15 @@ dependencies = [
 name = "f-codesgitquantsmind-productsliteideappsdesktop"
 version = "0.1.0"
 dependencies = [
+ "configuration",
+ "document",
+ "filesystem",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "workspace",
 ]
 
 [[package]]
