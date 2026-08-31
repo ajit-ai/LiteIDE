@@ -8,6 +8,7 @@ pub struct AppState {
     documents: Mutex<document::DocumentManager>,
     commands: Mutex<command::CommandRegistry>,
     events: Mutex<event_bus::EventBus>,
+    terminal: Mutex<terminal::TerminalService>,
 }
 
 #[tauri::command]
@@ -72,19 +73,37 @@ fn emit_event(event: event_bus::IDEEvent, state: tauri::State<AppState>) -> Vec<
     bus.emit(&event)
 }
 
+#[tauri::command]
+fn get_shells() -> Vec<terminal::ShellInfo> { terminal::ShellDetector::detect() }
+
+#[tauri::command]
+fn create_terminal(shell: Option<terminal::ShellInfo>, cwd: Option<String>, state: tauri::State<AppState>) -> terminal::TerminalSession {
+    let mut t = state.terminal.lock().unwrap();
+    t.new_session(shell, cwd)
+}
+
+#[tauri::command]
+fn list_terminals(state: tauri::State<AppState>) -> Vec<terminal::TerminalSession> {
+    let t = state.terminal.lock().unwrap();
+    t.pty.list().into_iter().cloned().collect()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut cmd_reg = command::CommandRegistry::new();
     // Register default commands Phase 4
     let _ = cmd_reg.register("workspace.open", "Open Workspace", "workspace");
     let _ = cmd_reg.register("file.save", "Save File", "file");
+    let _ = cmd_reg.register("file.saveAll", "Save All", "file");
     let _ = cmd_reg.register("build.run", "Run Build", "build");
+    let _ = cmd_reg.register("terminal.new", "New Terminal", "terminal");
     let _ = cmd_reg.register("debug.start", "Start Debugging", "debug");
     let state = AppState {
         workspace: Mutex::new(workspace::WorkspaceManager::new()),
         documents: Mutex::new(document::DocumentManager::new()),
         commands: Mutex::new(cmd_reg),
         events: Mutex::new(event_bus::EventBus::new()),
+        terminal: Mutex::new(terminal::TerminalService::new()),
     };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -103,7 +122,10 @@ pub fn run() {
             register_command,
             execute_command,
             list_commands,
-            emit_event
+            emit_event,
+            get_shells,
+            create_terminal,
+            list_terminals
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

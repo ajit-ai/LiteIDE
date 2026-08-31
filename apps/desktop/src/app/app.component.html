@@ -84,7 +84,13 @@
           <span [class.active]="bottomTab==='debug'" (click)="bottomTab='debug'">Debug Console</span>
         </div>
         @if (bottomTab==='terminal') {
-          <div class="xterm">Terminal — xterm.js + PowerShell/cmd/bash/zsh (PTY)</div>
+          <div style="height:200px; display:flex; flex-direction:column;">
+            <div style="display:flex; gap:4px; padding:4px; background:#252526; border-bottom:1px solid #3c3c3c;">
+              <button (click)="newTerminal()">+ New Terminal</button>
+              <span style="color:#858585; font-size:11px;">{{ shellInfo }}</span>
+            </div>
+            <qm-xterm style="flex:1;"></qm-xterm>
+          </div>
         }
         @if (bottomTab==='output') {
           <div class="output">Output — build: {{ lastBuild || 'Run → Build' }}</div>
