@@ -2,12 +2,13 @@ import { Component, signal, HostListener } from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import { invoke } from "@tauri-apps/api/core";
 import { MonacoEditorComponent } from "./editor/monaco-editor.component";
+import { CommandPaletteComponent, Cmd } from "./command-palette/command-palette.component";
 
 interface Tab { path: string; name: string; content: string; dirty: boolean; language: string; }
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, MonacoEditorComponent],
+  imports: [RouterOutlet, MonacoEditorComponent, CommandPaletteComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })
@@ -132,8 +133,20 @@ export class AppComponent {
     this.greetingMessage.set("Help: File→Open Folder → Edit → Save Ctrl+S → Build Ctrl+B → Run Ctrl+R — docs/help.md");
   }
 
+  paletteOpen = false;
+  commands: Cmd[] = [];
+
+  async ngOnInitPalette() {
+    try { this.commands = await invoke<Cmd[]>("list_commands"); } catch {}
+  }
+
   @HostListener('window:keydown', ['$event'])
   handleKey(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      this.ngOnInitPalette();
+      this.paletteOpen = true;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       this.saveActive();
@@ -142,5 +155,15 @@ export class AppComponent {
       e.preventDefault();
       this.openFolder();
     }
+  }
+
+  async execCommand(id: string) {
+    try {
+      const res = await invoke<string>("execute_command", { id });
+      this.greetingMessage.set(res);
+      // also emit typed event for demo
+      if (id === "file.save") this.saveActive();
+      if (id === "workspace.open") this.openFolder();
+    } catch (e) { this.greetingMessage.set(String(e)); }
   }
 }

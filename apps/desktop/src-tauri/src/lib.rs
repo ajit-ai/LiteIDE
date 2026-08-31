@@ -6,6 +6,8 @@ use tauri::Manager;
 pub struct AppState {
     workspace: Mutex<workspace::WorkspaceManager>,
     documents: Mutex<document::DocumentManager>,
+    commands: Mutex<command::CommandRegistry>,
+    events: Mutex<event_bus::EventBus>,
 }
 
 #[tauri::command]
@@ -46,11 +48,43 @@ fn open_document(uri: String, language: String, content: String, state: tauri::S
     Ok(docs.open(&uri, &language, &content))
 }
 
+#[tauri::command]
+fn register_command(id: String, title: String, category: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let mut reg = state.commands.lock().unwrap();
+    reg.register(&id, &title, &category).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn execute_command(id: String, state: tauri::State<AppState>) -> Result<String, String> {
+    let reg = state.commands.lock().unwrap();
+    reg.execute(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_commands(state: tauri::State<AppState>) -> Vec<command::Command> {
+    let reg = state.commands.lock().unwrap();
+    reg.list().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+fn emit_event(event: event_bus::IDEEvent, state: tauri::State<AppState>) -> Vec<String> {
+    let bus = state.events.lock().unwrap();
+    bus.emit(&event)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut cmd_reg = command::CommandRegistry::new();
+    // Register default commands Phase 4
+    let _ = cmd_reg.register("workspace.open", "Open Workspace", "workspace");
+    let _ = cmd_reg.register("file.save", "Save File", "file");
+    let _ = cmd_reg.register("build.run", "Run Build", "build");
+    let _ = cmd_reg.register("debug.start", "Start Debugging", "debug");
     let state = AppState {
         workspace: Mutex::new(workspace::WorkspaceManager::new()),
         documents: Mutex::new(document::DocumentManager::new()),
+        commands: Mutex::new(cmd_reg),
+        events: Mutex::new(event_bus::EventBus::new()),
     };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -65,7 +99,11 @@ pub fn run() {
             delete_path,
             read_file,
             write_file,
-            open_document
+            open_document,
+            register_command,
+            execute_command,
+            list_commands,
+            emit_event
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

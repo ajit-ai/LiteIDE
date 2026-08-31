@@ -1029,8 +1029,10 @@ dependencies = [
 name = "f-codesgitquantsmind-productsliteideappsdesktop"
 version = "0.1.0"
 dependencies = [
+ "command",
  "configuration",
  "document",
+ "event-bus",
  "filesystem",
  "serde",
  "serde_json",
