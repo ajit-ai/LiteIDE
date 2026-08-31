@@ -107,6 +107,8 @@
     <span>{{ isDark ? '🌙 Dark' : '☀️ Light' }}</span>
     <span (click)="isDark=!isDark" style="cursor:pointer">Theme</span>
     <span (click)="showHelp()" style="cursor:pointer;text-decoration:underline">Help</span>
+    <span (click)="paletteOpen=true" style="cursor:pointer">Ctrl+Shift+P</span>
   </div>
+  <qm-palette [open]="paletteOpen" [commands]="commands" (close)="paletteOpen=false" (execute)="execCommand($event)"></qm-palette>
 </div>
 <router-outlet />

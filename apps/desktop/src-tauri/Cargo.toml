@@ -26,6 +26,8 @@ workspace = { path = "../../../crates/workspace" }
 filesystem = { path = "../../../crates/filesystem" }
 document = { path = "../../../crates/document" }
 configuration = { path = "../../../crates/configuration" }
+command = { path = "../../../crates/command" }
+event_bus = { package = "event-bus", path = "../../../crates/event-bus" }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
