@@ -1,21 +1,104 @@
-<main class="container">
-  <h1>Welcome to Tauri + Angular!</h1>
-
-  <div class="row">
-    <a href="https://tauri.app" target="_blank">
-      <img src="/assets/tauri.svg" class="logo tauri" alt="Tauri logo" />
-    </a>
-    <a href="https://angular.io" target="_blank">
-      <img src="/assets/angular.svg" class="logo angular" alt="Angular logo" />
-    </a>
+<div class="qmide-shell" [class.dark]="isDark">
+  <!-- MenuBar (native via Tauri, but web fallback) -->
+  <div class="menubar">
+    <span class="logo">QuantsMind IDE</span>
+    <span class="menu" (click)="showHelp()">File</span>
+    <span class="menu" (click)="showHelp()">Edit</span>
+    <span class="menu" (click)="showHelp()">View</span>
+    <span class="menu" (click)="showHelp()">Run</span>
+    <span class="menu" (click)="showHelp()">Help</span>
+    <span class="spacer">Small core, infinite reach — C/C++ · Java · Python</span>
   </div>
-  <p>Click on the logos to learn more about the frameworks</p>
 
-  <form class="row" (submit)="greet($event, greetInput.value)">
-    <input #greetInput id="greet-input" placeholder="Enter a name..." />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{{ greetingMessage() }}</p>
+  <div class="main-row">
+    <!-- ActivityBar -->
+    <div class="activitybar">
+      <button [class.active]="sidebarTab==='explorer'" (click)="sidebarTab='explorer'" title="Explorer">📁</button>
+      <button [class.active]="sidebarTab==='search'" (click)="sidebarTab='search'" title="Search">🔍</button>
+      <button [class.active]="sidebarTab==='sc'" (click)="sidebarTab='sc'" title="Source Control">⎇</button>
+      <button [class.active]="sidebarTab==='ext'" (click)="sidebarTab='ext'" title="Extensions">🧩</button>
+    </div>
 
-  <router-outlet />
-</main>
+    <!-- Sidebar -->
+    <div class="sidebar">
+      @if (sidebarTab==='explorer') {
+        <div class="pane-title">Explorer</div>
+        <div class="explorer">
+          <button (click)="openFolder()">Open Folder</button>
+          <div class="file" (click)="openSample('Hello.java')">Hello.java</div>
+          <div class="file" (click)="openSample('hello.c')">hello.c</div>
+          <div class="file" (click)="openSample('hello.py')">hello.py</div>
+          <div class="hint">{{ workspaceRoot || 'No folder opened' }}</div>
+        </div>
+      }
+      @if (sidebarTab==='search') {
+        <div class="pane-title">Search</div>
+        <input placeholder="Search..." />
+      }
+      @if (sidebarTab==='sc') {
+        <div class="pane-title">Source Control</div>
+        <div class="hint">Git status via plugin (future)</div>
+      }
+      @if (sidebarTab==='ext') {
+        <div class="pane-title">Extensions</div>
+        <div class="hint">lang-c, lang-cpp, lang-java, lang-python + Go, Git, Debugger</div>
+      }
+    </div>
+
+    <!-- EditorArea -->
+    <div class="editor-area">
+      <div class="tabs">
+        @for (tab of tabs; track tab.path) {
+          <span class="tab" [class.active]="tab.path===activePath" (click)="activePath=tab.path">{{ tab.name }} <span (click)="closeTab(tab.path)">×</span></span>
+        }
+        @if (tabs.length===0) {
+          <span class="tab active">Welcome</span>
+        }
+      </div>
+      <div class="monaco">
+        @if (tabs.length===0) {
+          <div class="placeholder">
+            <h3>No file open</h3>
+            <p>Open a file from Explorer or press Ctrl+O</p>
+            <p class="hint">{{ greetingMessage() }}</p>
+          </div>
+        } @else {
+          <textarea class="fallback" [value]="activeContent" (input)="onEdit($event)" placeholder="Edit — Ctrl+S to save"></textarea>
+        }
+      </div>
+
+      <!-- BottomPanel -->
+      <div class="bottom">
+        <div class="bottom-tabs">
+          <span [class.active]="bottomTab==='terminal'" (click)="bottomTab='terminal'">Terminal</span>
+          <span [class.active]="bottomTab==='output'" (click)="bottomTab='output'">Output</span>
+          <span [class.active]="bottomTab==='problems'" (click)="bottomTab='problems'">Problems</span>
+          <span [class.active]="bottomTab==='debug'" (click)="bottomTab='debug'">Debug Console</span>
+        </div>
+        @if (bottomTab==='terminal') {
+          <div class="xterm">Terminal — xterm.js + PowerShell/cmd/bash/zsh (PTY)</div>
+        }
+        @if (bottomTab==='output') {
+          <div class="output">Output — build: {{ lastBuild || 'Run → Build' }}</div>
+        }
+        @if (bottomTab==='problems') {
+          <div class="problems">Problems — LSP diagnostics (clangd/jdtls/pylsp)</div>
+        }
+        @if (bottomTab==='debug') {
+          <div class="debug">Debug Console — DAP (GDB/LLDB/debugpy)</div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- StatusBar -->
+  <div class="statusbar">
+    <span>QMIDE</span>
+    <span>{{ activePath || 'No file' }}</span>
+    <span class="spacer"></span>
+    <span>{{ isDark ? '🌙 Dark' : '☀️ Light' }}</span>
+    <span (click)="isDark=!isDark" style="cursor:pointer">Theme</span>
+    <span (click)="showHelp()" style="cursor:pointer;text-decoration:underline">Help</span>
+  </div>
+</div>
+<router-outlet />
