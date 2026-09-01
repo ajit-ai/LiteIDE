@@ -1041,6 +1041,7 @@ dependencies = [
  "document",
  "event-bus",
  "filesystem",
+ "git",
  "plugin",
  "serde",
  "serde_json",
@@ -1409,6 +1410,17 @@ dependencies = [
  "libc",
  "system-deps",
  "winapi",
+]
+
+[[package]]
+name = "git"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
