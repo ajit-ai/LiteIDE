@@ -9,6 +9,7 @@ pub struct AppState {
     commands: Mutex<command::CommandRegistry>,
     events: Mutex<event_bus::EventBus>,
     terminal: Mutex<terminal::TerminalService>,
+    debug: Mutex<debug::DebugService>,
 }
 
 #[tauri::command]
@@ -88,22 +89,43 @@ fn list_terminals(state: tauri::State<AppState>) -> Vec<terminal::TerminalSessio
     t.pty.list().into_iter().cloned().collect()
 }
 
+#[tauri::command]
+fn debug_add_breakpoint(uri: String, line: u32, state: tauri::State<AppState>) -> debug::Breakpoint {
+    let mut d = state.debug.lock().unwrap();
+    d.add_breakpoint(&uri, line)
+}
+
+#[tauri::command]
+fn debug_start(adapter: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let mut d = state.debug.lock().unwrap();
+    d.start(&adapter).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn debug_step_over(state: tauri::State<AppState>) -> Result<u32, String> {
+    let mut d = state.debug.lock().unwrap();
+    d.step_over().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut cmd_reg = command::CommandRegistry::new();
-    // Register default commands Phase 4
+    // Register default commands Phase 4-9
     let _ = cmd_reg.register("workspace.open", "Open Workspace", "workspace");
     let _ = cmd_reg.register("file.save", "Save File", "file");
     let _ = cmd_reg.register("file.saveAll", "Save All", "file");
     let _ = cmd_reg.register("build.run", "Run Build", "build");
     let _ = cmd_reg.register("terminal.new", "New Terminal", "terminal");
     let _ = cmd_reg.register("debug.start", "Start Debugging", "debug");
+    let _ = cmd_reg.register("debug.stop", "Stop Debugging", "debug");
+    let _ = cmd_reg.register("debug.stepOver", "Step Over", "debug");
     let state = AppState {
         workspace: Mutex::new(workspace::WorkspaceManager::new()),
         documents: Mutex::new(document::DocumentManager::new()),
         commands: Mutex::new(cmd_reg),
         events: Mutex::new(event_bus::EventBus::new()),
         terminal: Mutex::new(terminal::TerminalService::new()),
+        debug: Mutex::new(debug::DebugService::new()),
     };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -125,7 +147,10 @@ pub fn run() {
             emit_event,
             get_shells,
             create_terminal,
-            list_terminals
+            list_terminals,
+            debug_add_breakpoint,
+            debug_start,
+            debug_step_over
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

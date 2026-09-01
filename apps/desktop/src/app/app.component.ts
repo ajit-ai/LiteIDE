@@ -146,6 +146,27 @@ export class AppComponent {
     }
   }
 
+  debugStatus = "Inactive";
+  breakpoints: { id: string; uri: string; line: number }[] = [];
+
+  async debugStart() {
+    try { await invoke("debug_start", { adapter: "gdb" }); this.debugStatus = "Running (gdb)"; } catch (e) { this.debugStatus = String(e); }
+  }
+  async debugStop() {
+    try { await invoke("debug_step_over"); this.debugStatus = "Stopped"; } catch {}
+  }
+  async debugStep() {
+    try { await invoke("debug_step_over"); this.debugStatus = "Step Over"; } catch (e) { this.debugStatus = String(e); }
+  }
+  async addBreakpoint() {
+    if (!this.activePath) return;
+    try {
+      const bp = await invoke<{ id: string; uri: string; line: number }>("debug_add_breakpoint", { uri: this.activePath, line: 1 });
+      this.breakpoints.push(bp);
+      this.debugStatus = `Breakpoint ${bp.uri}:${bp.line}`;
+    } catch (e) { this.debugStatus = String(e); }
+  }
+
   paletteOpen = false;
   commands: Cmd[] = [];
 

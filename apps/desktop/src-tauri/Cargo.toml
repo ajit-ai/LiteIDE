@@ -29,6 +29,7 @@ configuration = { path = "../../../crates/configuration" }
 command = { path = "../../../crates/command" }
 event_bus = { package = "event-bus", path = "../../../crates/event-bus" }
 terminal = { path = "../../../crates/terminal" }
+debug = { path = "../../../crates/debug" }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
