@@ -45,6 +45,7 @@ export class AppComponent {
 
   constructor() {
     invoke<string>("greet", { name: "QuantsMind" }).then((t) => this.greetingMessage.set(t));
+    this.loadPlugins();
   }
 
   async openFolder() {
@@ -148,6 +149,11 @@ export class AppComponent {
 
   debugStatus = "Inactive";
   breakpoints: { id: string; uri: string; line: number }[] = [];
+  plugins: { plugin: { id: string; name: string; version: string } }[] = [];
+
+  async loadPlugins() {
+    try { this.plugins = await invoke<{ plugin: { id: string; name: string; version: string } }[]>("list_plugins"); } catch { this.plugins = []; }
+  }
 
   async debugStart() {
     try { await invoke("debug_start", { adapter: "gdb" }); this.debugStatus = "Running (gdb)"; } catch (e) { this.debugStatus = String(e); }
