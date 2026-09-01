@@ -127,6 +127,15 @@ fn activate_plugin(id: String, state: tauri::State<AppState>) -> Result<(), Stri
     plugin::PluginLifecycle::activate(&mut p.registry, &id).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn git_is_repo(path: String) -> bool { git::GitService::is_repo(std::path::Path::new(&path)) }
+
+#[tauri::command]
+fn git_branch(path: String) -> Result<String, String> { git::GitService::current_branch(std::path::Path::new(&path)).map_err(|e| e.to_string()) }
+
+#[tauri::command]
+fn git_status(path: String) -> Result<git::GitStatus, String> { git::GitService::status(std::path::Path::new(&path)).map_err(|e| e.to_string()) }
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut cmd_reg = command::CommandRegistry::new();
@@ -187,7 +196,10 @@ pub fn run() {
             debug_step_over,
             list_plugins,
             register_plugin,
-            activate_plugin
+            activate_plugin,
+            git_is_repo,
+            git_branch,
+            git_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

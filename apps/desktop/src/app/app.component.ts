@@ -55,6 +55,7 @@ export class AppComponent {
       const ws = await invoke<{ id: string; root: string; name: string }>("open_workspace", { path: root });
       this.workspaceRoot = ws.root;
       this.greetingMessage.set(`Workspace opened: ${ws.name} (.ide/ created)`);
+      this.refreshGit();
     } catch (e) {
       this.greetingMessage.set(`Open failed: ${String(e)}`);
     }
@@ -150,9 +151,23 @@ export class AppComponent {
   debugStatus = "Inactive";
   breakpoints: { id: string; uri: string; line: number }[] = [];
   plugins: { plugin: { id: string; name: string; version: string } }[] = [];
+  gitIsRepo = false;
+  gitBranch: string | null = null;
+  gitStatus: { branch: string; changed: string[]; staged: string[]; untracked: string[] } | null = null;
 
   async loadPlugins() {
     try { this.plugins = await invoke<{ plugin: { id: string; name: string; version: string } }[]>("list_plugins"); } catch { this.plugins = []; }
+  }
+
+  async refreshGit() {
+    if (!this.workspaceRoot) return;
+    try {
+      this.gitIsRepo = await invoke<boolean>("git_is_repo", { path: this.workspaceRoot });
+      if (this.gitIsRepo) {
+        this.gitBranch = await invoke<string>("git_branch", { path: this.workspaceRoot });
+        this.gitStatus = await invoke<{ branch: string; changed: string[]; staged: string[]; untracked: string[] }>("git_status", { path: this.workspaceRoot });
+      }
+    } catch (e) { this.greetingMessage.set(String(e)); }
   }
 
   async debugStart() {

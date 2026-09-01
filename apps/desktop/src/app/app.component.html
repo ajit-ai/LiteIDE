@@ -43,8 +43,14 @@
         <input placeholder="Search..." />
       }
       @if (sidebarTab==='sc') {
-        <div class="pane-title">Source Control</div>
-        <div class="hint">Git status via plugin (future)</div>
+        <div class="pane-title">Source Control — Phase 11</div>
+        <div style="padding:8px; display:flex; flex-direction:column; gap:6px;">
+          <div>Branch: {{ gitBranch || '—' }} {{ gitIsRepo ? '' : '(not a git repo)' }}</div>
+          <button (click)="refreshGit()">Refresh Git Status</button>
+          <div>Changed: {{ gitStatus?.changed?.length || 0 }} — @for (f of gitStatus?.changed || []; track f) { <div>{{f}}</div> }</div>
+          <div>Staged: {{ gitStatus?.staged?.length || 0 }}</div>
+          <div>Untracked: {{ gitStatus?.untracked?.length || 0 }}</div>
+        </div>
       }
       @if (sidebarTab==='ext') {
         <div class="pane-title">Extensions — Phase 10</div>
