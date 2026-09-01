@@ -99,7 +99,18 @@
           <div class="problems">Problems — LSP diagnostics (clangd/jdtls/pylsp)</div>
         }
         @if (bottomTab==='debug') {
-          <div class="debug">Debug Console — DAP (GDB/LLDB/debugpy)</div>
+          <div class="debug" style="padding:8px; font-family:monospace; font-size:12px;">
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+              <button (click)="debugStart()">Start</button>
+              <button (click)="debugStep()">Step Over</button>
+              <button (click)="debugStop()">Stop</button>
+              <button (click)="addBreakpoint()">Toggle Breakpoint</button>
+            </div>
+            <div>Debug Console — DAP (GDB/LLDB/debugpy) — {{ debugStatus }}</div>
+            <div>Breakpoints: {{ breakpoints.length }} —
+              @for (bp of breakpoints; track bp.id) { <span>{{bp.uri}}:{{bp.line}} </span> }
+            </div>
+          </div>
         }
       </div>
     </div>
