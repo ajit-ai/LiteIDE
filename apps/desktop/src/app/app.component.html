@@ -47,8 +47,13 @@
         <div class="hint">Git status via plugin (future)</div>
       }
       @if (sidebarTab==='ext') {
-        <div class="pane-title">Extensions</div>
-        <div class="hint">lang-c, lang-cpp, lang-java, lang-python + Go, Git, Debugger</div>
+        <div class="pane-title">Extensions — Phase 10</div>
+        <div class="hint">Registered: {{ plugins.length }} —
+          @for (p of plugins; track p.plugin.id) { <span>{{p.plugin.id}} </span> }
+        </div>
+        <div class="hint">Capabilities: languages/build/debug/commands via plugin.toml</div>
+        <button (click)="loadPlugins()">Refresh</button>
+        <div class="hint">Future: ThemePlugin, EditorPlugin, AIPlugin — WASM sandboxed</div>
       }
     </div>
 

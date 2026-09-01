@@ -10,6 +10,7 @@ pub struct AppState {
     events: Mutex<event_bus::EventBus>,
     terminal: Mutex<terminal::TerminalService>,
     debug: Mutex<debug::DebugService>,
+    plugins: Mutex<plugin::PluginManager>,
 }
 
 #[tauri::command]
@@ -107,10 +108,29 @@ fn debug_step_over(state: tauri::State<AppState>) -> Result<u32, String> {
     d.step_over().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn list_plugins(state: tauri::State<AppState>) -> Vec<plugin::PluginManifest> {
+    let p = state.plugins.lock().unwrap();
+    p.registry.list().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+fn register_plugin(toml: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let manifest = plugin::PluginLoader::load_from_toml(&toml).map_err(|e| e.to_string())?;
+    let mut p = state.plugins.lock().unwrap();
+    p.registry.register(manifest).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn activate_plugin(id: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let mut p = state.plugins.lock().unwrap();
+    plugin::PluginLifecycle::activate(&mut p.registry, &id).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut cmd_reg = command::CommandRegistry::new();
-    // Register default commands Phase 4-9
+    // Register default commands Phase 4-10
     let _ = cmd_reg.register("workspace.open", "Open Workspace", "workspace");
     let _ = cmd_reg.register("file.save", "Save File", "file");
     let _ = cmd_reg.register("file.saveAll", "Save All", "file");
@@ -119,6 +139,19 @@ pub fn run() {
     let _ = cmd_reg.register("debug.start", "Start Debugging", "debug");
     let _ = cmd_reg.register("debug.stop", "Stop Debugging", "debug");
     let _ = cmd_reg.register("debug.stepOver", "Step Over", "debug");
+    let _ = cmd_reg.register("plugin.list", "List Plugins", "plugin");
+    let mut plugin_mgr = plugin::PluginManager::new();
+    // Register built-in plugins Phase 10
+    for toml in [
+        "[plugin]\nid=\"quantsmind.language.c\"\nname=\"C\"\nversion=\"0.1.0\"\n[capabilities]\nlanguages=true\nbuild=true\ndebug=true\ncommands=true\n",
+        "[plugin]\nid=\"quantsmind.language.cpp\"\nname=\"C++\"\nversion=\"0.1.0\"\n[capabilities]\nlanguages=true\nbuild=true\ndebug=true\ncommands=true\n",
+        "[plugin]\nid=\"quantsmind.language.java\"\nname=\"Java\"\nversion=\"0.1.0\"\n[capabilities]\nlanguages=true\nbuild=true\ndebug=true\ncommands=true\n",
+        "[plugin]\nid=\"quantsmind.language.python\"\nname=\"Python\"\nversion=\"0.1.0\"\n[capabilities]\nlanguages=true\nbuild=true\ndebug=false\ncommands=true\n",
+    ] {
+        if let Ok(m) = plugin::PluginLoader::load_from_toml(toml) {
+            let _ = plugin_mgr.registry.register(m);
+        }
+    }
     let state = AppState {
         workspace: Mutex::new(workspace::WorkspaceManager::new()),
         documents: Mutex::new(document::DocumentManager::new()),
@@ -126,6 +159,7 @@ pub fn run() {
         events: Mutex::new(event_bus::EventBus::new()),
         terminal: Mutex::new(terminal::TerminalService::new()),
         debug: Mutex::new(debug::DebugService::new()),
+        plugins: Mutex::new(plugin_mgr),
     };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -150,7 +184,10 @@ pub fn run() {
             list_terminals,
             debug_add_breakpoint,
             debug_start,
-            debug_step_over
+            debug_step_over,
+            list_plugins,
+            register_plugin,
+            activate_plugin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

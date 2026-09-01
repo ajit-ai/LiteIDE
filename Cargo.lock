@@ -1041,6 +1041,7 @@ dependencies = [
  "document",
  "event-bus",
  "filesystem",
+ "plugin",
  "serde",
  "serde_json",
  "tauri",
@@ -2707,6 +2708,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "toml 0.8.2",
 ]
 
 [[package]]
