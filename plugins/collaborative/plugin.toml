@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.collaborative"
+name = "Collaborative Editing"
+version = "0.1.0"
+
+[capabilities]
+languages = true
+build = false
+debug = false
+commands = true

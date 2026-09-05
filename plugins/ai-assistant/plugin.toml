@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.ai.assistant"
+name = "AI Assistant"
+version = "0.1.0"
+
+[capabilities]
+languages = true
+build = false
+debug = false
+commands = true
