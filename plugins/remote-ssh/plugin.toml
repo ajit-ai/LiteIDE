@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.remote.ssh"
+name = "Remote SSH"
+version = "0.1.0"
+
+[capabilities]
+languages = false
+build = false
+debug = false
+commands = true
