@@ -1,0 +1,15 @@
+{
+  "name": "quantsmind-ide",
+  "private": true,
+  "version": "0.1.0",
+  "description": "QuantsMind IDE — one-click build for Windows/Linux/macOS/BSD",
+  "scripts": {
+    "dev": "pnpm --filter desktop dev",
+    "tauri:dev": "pnpm --filter desktop tauri dev",
+    "build": "cargo check --workspace && pnpm --filter desktop build",
+    "build:all": "cargo check --workspace && pnpm --filter desktop build && pnpm --filter desktop tauri build",
+    "test": "cargo test --workspace --exclude f-codesgitquantsmind-productsliteideappsdesktop && pnpm --filter desktop build",
+    "lint": "cargo check --workspace && pnpm --filter desktop exec tsc --noEmit"
+  },
+  "packageManager": "pnpm@11.24.0"
+}
