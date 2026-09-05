@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.docker.runner"
+name = "Docker Runner"
+version = "0.1.0"
+
+[capabilities]
+languages = false
+build = true
+debug = false
+commands = true
