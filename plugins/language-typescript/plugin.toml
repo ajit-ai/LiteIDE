@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.language.typescript"
+name = "TypeScript"
+version = "0.1.0"
+
+[capabilities]
+languages = true
+build = true
+debug = false
+commands = true

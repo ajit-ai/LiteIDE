@@ -1,0 +1,10 @@
+[plugin]
+id = "quantsmind.language.go"
+name = "Go"
+version = "0.1.0"
+
+[capabilities]
+languages = true
+build = true
+debug = true
+commands = true
